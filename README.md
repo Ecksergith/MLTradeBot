@@ -615,5 +615,4 @@ Para suporte, envie um email para suporte@tradingbot.com ou crie uma issue no Gi
 
 ---
 
-**⚠️ Aviso Importante**: Este bot de trading é para fins educacionais e demonstrativos. Trading de criptomoedas envolve riscos significativos e pode resultar em perdas. Sempre faça sua própria pesquisa e consulte um consultor financeiro antes de investir.#   M L T r a d e B o t  
- 
+**⚠️ Aviso Importante**: Este bot de trading é para fins educacionais e demonstrativos. Trading de criptomoedas envolve riscos significativos e pode resultar em perdas. Sempre faça sua própria pesquisa e consulte um consultor financeiro antes de investir.
