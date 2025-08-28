@@ -60,7 +60,7 @@ export default function MLTradingBot() {
   })
   const [selectedAsset, setSelectedAsset] = useState('')
   const [tradeAmount, setTradeAmount] = useState('')
-  const [mlStatus, setMlStatus] = useState('Training ML models...')
+  const [mlStatus, setMlStatus] = useState('Treinando modelos ML...')
 
   // Simulate real-time data updates
   useEffect(() => {
@@ -118,11 +118,11 @@ export default function MLTradingBot() {
     // Simulate ML status updates
     const mlInterval = setInterval(() => {
       const statuses = [
-        'Analyzing market patterns...',
-        'Processing historical data...',
-        'Running neural networks...',
-        'Generating predictions...',
-        'Optimizing trading strategy...'
+        'Analisando padrões de mercado...',
+        'Processando dados históricos...',
+        'Executando redes neurais...',
+        'Gerando previsões...',
+        'Otimizando estratégia de trading...'
       ]
       setMlStatus(statuses[Math.floor(Math.random() * statuses.length)])
     }, 5000)
@@ -169,9 +169,9 @@ export default function MLTradingBot() {
 
   const getPredictionBadge = (prediction: string) => {
     switch (prediction) {
-      case 'buy': return <Badge className="bg-green-600">BUY</Badge>
-      case 'sell': return <Badge className="bg-red-600">SELL</Badge>
-      default: return <Badge className="bg-yellow-600">HOLD</Badge>
+      case 'buy': return <Badge className="bg-green-600">COMPRAR</Badge>
+      case 'sell': return <Badge className="bg-red-600">VENDER</Badge>
+      default: return <Badge className="bg-yellow-600">MANTER</Badge>
     }
   }
 
@@ -184,21 +184,21 @@ export default function MLTradingBot() {
             <Brain className="h-8 w-8 text-blue-400" />
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                ML Trading Bot
+                Bot de Trading ML
               </h1>
-              <p className="text-gray-400">AI-Powered Trading Platform</p>
+              <p className="text-gray-400">Plataforma de Trading com Inteligência Artificial</p>
             </div>
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-right">
-              <div className="text-sm text-gray-400">ML Status</div>
+              <div className="text-sm text-gray-400">Status ML</div>
               <div className="text-sm text-blue-400">{mlStatus}</div>
             </div>
             <Button
               onClick={toggleBot}
               className={`${isBotActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
             >
-              {isBotActive ? 'Stop Bot' : 'Start Bot'}
+              {isBotActive ? 'Parar Bot' : 'Iniciar Bot'}
             </Button>
           </div>
         </div>
@@ -208,13 +208,13 @@ export default function MLTradingBot() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-green-400" />
-              <span>Portfolio Overview</span>
+              <span>Visão Geral do Portfólio</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <div className="text-sm text-gray-400">Total Value</div>
+                <div className="text-sm text-gray-400">Valor Total</div>
                 <div className="text-2xl font-bold">${portfolio.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 <div className={`flex items-center space-x-1 ${portfolio.dailyChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {portfolio.dailyChange >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
@@ -222,19 +222,19 @@ export default function MLTradingBot() {
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="text-sm text-gray-400">Active Trades</div>
+                <div className="text-sm text-gray-400">Trades Ativos</div>
                 <div className="text-2xl font-bold">{trades.length}</div>
-                <div className="text-sm text-gray-400">Last 24 hours</div>
+                <div className="text-sm text-gray-400">Últimas 24 horas</div>
               </div>
               <div className="space-y-2">
-                <div className="text-sm text-gray-400">Bot Status</div>
+                <div className="text-sm text-gray-400">Status do Bot</div>
                 <div className="flex items-center space-x-2">
                   <div className={`w-3 h-3 rounded-full ${isBotActive ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
                   <span className={isBotActive ? 'text-green-400' : 'text-red-400'}>
-                    {isBotActive ? 'Active' : 'Inactive'}
+                    {isBotActive ? 'Ativo' : 'Inativo'}
                   </span>
                 </div>
-                <div className="text-sm text-gray-400">ML Model: {botSettings.mlModel.toUpperCase()}</div>
+                <div className="text-sm text-gray-400">Modelo ML: {botSettings.mlModel.toUpperCase()}</div>
               </div>
             </div>
           </CardContent>
@@ -243,9 +243,9 @@ export default function MLTradingBot() {
         <Tabs defaultValue="trading" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 bg-gray-800">
             <TabsTrigger value="trading" className="data-[state=active]:bg-gray-700">Trading</TabsTrigger>
-            <TabsTrigger value="assets" className="data-[state=active]:bg-gray-700">Assets</TabsTrigger>
-            <TabsTrigger value="predictions" className="data-[state=active]:bg-gray-700">ML Predictions</TabsTrigger>
-            <TabsTrigger value="history" className="data-[state=active]:bg-gray-700">History</TabsTrigger>
+            <TabsTrigger value="assets" className="data-[state=active]:bg-gray-700">Ativos</TabsTrigger>
+            <TabsTrigger value="predictions" className="data-[state=active]:bg-gray-700">Previsões ML</TabsTrigger>
+            <TabsTrigger value="history" className="data-[state=active]:bg-gray-700">Histórico</TabsTrigger>
           </TabsList>
 
           <TabsContent value="trading" className="space-y-6">
@@ -253,15 +253,15 @@ export default function MLTradingBot() {
               {/* Trading Panel */}
               <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle>Quick Trade</CardTitle>
-                  <CardDescription>Execute trades instantly</CardDescription>
+                  <CardTitle>Trade Rápido</CardTitle>
+                  <CardDescription>Execute trades instantaneamente</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="asset">Asset</Label>
+                    <Label htmlFor="asset">Ativo</Label>
                     <Select value={selectedAsset} onValueChange={setSelectedAsset}>
                       <SelectTrigger className="bg-gray-700 border-gray-600">
-                        <SelectValue placeholder="Select asset" />
+                        <SelectValue placeholder="Selecione o ativo" />
                       </SelectTrigger>
                       <SelectContent className="bg-gray-700 border-gray-600">
                         {assets.map(asset => (
@@ -273,13 +273,13 @@ export default function MLTradingBot() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount (USD)</Label>
+                    <Label htmlFor="amount">Valor (USD)</Label>
                     <Input
                       id="amount"
                       type="number"
                       value={tradeAmount}
                       onChange={(e) => setTradeAmount(e.target.value)}
-                      placeholder="Enter amount"
+                      placeholder="Digite o valor"
                       className="bg-gray-700 border-gray-600"
                     />
                   </div>
@@ -289,14 +289,14 @@ export default function MLTradingBot() {
                       className="bg-green-600 hover:bg-green-700"
                       disabled={!selectedAsset || !tradeAmount}
                     >
-                      Buy
+                      Comprar
                     </Button>
                     <Button
                       onClick={() => executeTrade('sell')}
                       className="bg-red-600 hover:bg-red-700"
                       disabled={!selectedAsset || !tradeAmount}
                     >
-                      Sell
+                      Vender
                     </Button>
                   </div>
                 </CardContent>
@@ -307,25 +307,25 @@ export default function MLTradingBot() {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <Settings className="h-5 w-5" />
-                    <span>Bot Settings</span>
+                    <span>Configurações do Bot</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Risk Level</Label>
+                    <Label>Nível de Risco</Label>
                     <Select value={botSettings.riskLevel} onValueChange={(value) => setBotSettings(prev => ({ ...prev, riskLevel: value }))}>
                       <SelectTrigger className="bg-gray-700 border-gray-600">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-gray-700 border-gray-600">
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="low">Baixo</SelectItem>
+                        <SelectItem value="medium">Médio</SelectItem>
+                        <SelectItem value="high">Alto</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Max Trade Size: ${botSettings.maxTradeSize}</Label>
+                    <Label>Tamanho Máximo do Trade: ${botSettings.maxTradeSize}</Label>
                     <Input
                       type="range"
                       min="100"
@@ -368,8 +368,8 @@ export default function MLTradingBot() {
           <TabsContent value="assets" className="space-y-6">
             <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
               <CardHeader>
-                <CardTitle>Market Assets</CardTitle>
-                <CardDescription>Real-time asset prices and ML predictions</CardDescription>
+                <CardTitle>Ativos do Mercado</CardTitle>
+                <CardDescription>Preços de ativos em tempo real e previsões ML</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -392,7 +392,7 @@ export default function MLTradingBot() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-400">ML Prediction</div>
+                        <div className="text-sm text-gray-400">Previsão ML</div>
                         <div className="flex items-center space-x-2">
                           {getPredictionBadge(asset.mlPrediction)}
                           <span className={`text-sm ${getPredictionColor(asset.mlPrediction)}`}>
@@ -417,28 +417,28 @@ export default function MLTradingBot() {
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <Brain className="h-5 w-5 text-purple-400" />
-                    <span>ML Model Performance</span>
+                    <span>Performance do Modelo ML</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span>Prediction Accuracy</span>
+                        <span>Acurácia da Previsão</span>
                         <span>87.3%</span>
                       </div>
                       <Progress value={87.3} className="h-2" />
                     </div>
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span>Profit Factor</span>
+                        <span>Fator de Lucro</span>
                         <span>2.34</span>
                       </div>
                       <Progress value={76.8} className="h-2" />
                     </div>
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span>Win Rate</span>
+                        <span>Taxa de Acerto</span>
                         <span>73.5%</span>
                       </div>
                       <Progress value={73.5} className="h-2" />
@@ -446,12 +446,12 @@ export default function MLTradingBot() {
                   </div>
                   <Separator />
                   <div className="space-y-2">
-                    <div className="text-sm font-semibold">Model Information</div>
+                    <div className="text-sm font-semibold">Informações do Modelo</div>
                     <div className="text-sm text-gray-400 space-y-1">
-                      <div>• LSTM Neural Network</div>
-                      <div>• Training data: 2 years</div>
-                      <div>• Features: 45 technical indicators</div>
-                      <div>• Update frequency: Every 5 minutes</div>
+                      <div>• Rede Neural LSTM</div>
+                      <div>• Dados de treinamento: 2 anos</div>
+                      <div>• Features: 45 indicadores técnicos</div>
+                      <div>• Frequência de atualização: A cada 5 minutos</div>
                     </div>
                   </div>
                 </CardContent>
@@ -459,7 +459,7 @@ export default function MLTradingBot() {
 
               <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle>Current Predictions</CardTitle>
+                  <CardTitle>Previsões Atuais</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -471,12 +471,12 @@ export default function MLTradingBot() {
                         </div>
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span>Confidence</span>
+                            <span>Confiança</span>
                             <span>{asset.confidence}%</span>
                           </div>
                           <Progress value={asset.confidence} className="h-1" />
                           <div className="text-xs text-gray-400">
-                            Expected move: {asset.mlPrediction === 'buy' ? '+' : asset.mlPrediction === 'sell' ? '-' : '±'}
+                            Movimento esperado: {asset.mlPrediction === 'buy' ? '+' : asset.mlPrediction === 'sell' ? '-' : '±'}
                             {Math.abs(asset.change24h * 0.8).toFixed(2)}%
                           </div>
                         </div>
@@ -493,7 +493,7 @@ export default function MLTradingBot() {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Activity className="h-5 w-5" />
-                  <span>Trading History</span>
+                  <span>Histórico de Trading</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -503,7 +503,7 @@ export default function MLTradingBot() {
                       <div key={trade.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                         <div className="flex items-center space-x-4">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${trade.type === 'buy' ? 'bg-green-600' : 'bg-red-600'}`}>
-                            {trade.type === 'buy' ? 'B' : 'S'}
+                            {trade.type === 'buy' ? 'C' : 'V'}
                           </div>
                           <div>
                             <div className="font-semibold">{trade.symbol}</div>
@@ -515,7 +515,7 @@ export default function MLTradingBot() {
                         </div>
                         <div className="text-right">
                           <div className="font-semibold">${trade.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                          <div className="text-sm text-gray-400">{trade.amount} units</div>
+                          <div className="text-sm text-gray-400">{trade.amount} unidades</div>
                         </div>
                         <div className="text-right">
                           <div className={`font-semibold ${trade.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
