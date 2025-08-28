@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, Brain, Settings, Activity, Clock } from 'lucide-react'
 
+// Interface para representar uma operação de trading realizada
 interface Trade {
   id: string
   symbol: string
@@ -25,6 +26,7 @@ interface Trade {
   mlConfidence: number
 }
 
+// Interface para representar uma operação aberta
 interface OpenTrade {
   id: string
   symbol: string
@@ -41,6 +43,7 @@ interface OpenTrade {
   status: 'open' | 'closed'
 }
 
+// Interface para representar um ativo negociável
 interface Asset {
   symbol: string
   name: string
@@ -51,6 +54,7 @@ interface Asset {
   confidence: number
 }
 
+// Interface para representar o portfólio do usuário
 interface Portfolio {
   totalValue: number
   dailyChange: number
@@ -63,75 +67,91 @@ interface Portfolio {
 }
 
 export default function MLTradingBot() {
-  const [assets, setAssets] = useState<Asset[]>([])
-  const [portfolio, setPortfolio] = useState<Portfolio>({ totalValue: 0, dailyChange: 0, assets: [] })
-  const [trades, setTrades] = useState<Trade[]>([])
-  const [isBotActive, setIsBotActive] = useState(false)
-  const [isAutoTradeEnabled, setIsAutoTradeEnabled] = useState(false)
+  // Estados para gerenciar dados da aplicação
+  const [assets, setAssets] = useState<Asset[]>([]) // Lista de ativos disponíveis
+  const [portfolio, setPortfolio] = useState<Portfolio>({ totalValue: 0, dailyChange: 0, assets: [] }) // Dados do portfólio
+  const [previousPortfolioValue, setPreviousPortfolioValue] = useState(0) // Valor anterior do portfólio para cálculo de variação diária
+  const [trades, setTrades] = useState<Trade[]>([]) // Histórico de operações realizadas
+  const [isBotActive, setIsBotActive] = useState(false) // Status do bot (ativo/inativo)
+  const [isAutoTradeEnabled, setIsAutoTradeEnabled] = useState(false) // Status do trading automático
+  
+  // Configurações do trading automático
   const [autoTradeSettings, setAutoTradeSettings] = useState({
-    enabledAssets: ['BTC', 'ETH', 'SOL'],
-    minConfidence: 75,
-    maxDailyTrades: 10,
-    tradeInterval: 30, // segundos
-    riskMultiplier: 1.0
+    enabledAssets: ['BTC', 'ETH', 'SOL'], // Ativos habilitados para trading automático
+    minConfidence: 75, // Confiança mínima para executar operações
+    maxDailyTrades: 10, // Número máximo de operações diárias
+    tradeInterval: 30, // Intervalo entre operações em segundos
+    riskMultiplier: 1.0 // Multiplicador de risco
   })
+  
+  // Configurações gerais do bot
   const [botSettings, setBotSettings] = useState({
-    riskLevel: 'medium',
-    maxTradeSize: 1000,
-    stopLoss: 5,
-    takeProfit: 10,
-    mlModel: 'lstm'
+    riskLevel: 'medium', // Nível de risco (low, medium, high)
+    maxTradeSize: 1000, // Tamanho máximo da operação
+    stopLoss: 5, // Stop loss em porcentagem
+    takeProfit: 10, // Take profit em porcentagem
+    mlModel: 'lstm' // Modelo de machine learning
   })
-  const [selectedAsset, setSelectedAsset] = useState('')
-  const [tradeAmount, setTradeAmount] = useState('')
-  const [mlStatus, setMlStatus] = useState('Treinando modelos ML...')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [dailyTradeCount, setDailyTradeCount] = useState(0)
-  const [lastTradeReset, setLastTradeReset] = useState(new Date().toDateString())
-  const [openTrades, setOpenTrades] = useState<OpenTrade[]>([])
-  const [autoClosedTrades, setAutoClosedTrades] = useState<any[]>([])
+  
+  // Estados para interface do usuário
+  const [selectedAsset, setSelectedAsset] = useState('') // Ativo selecionado para operação manual
+  const [tradeAmount, setTradeAmount] = useState('') // Valor da operação manual
+  const [mlStatus, setMlStatus] = useState('Treinando modelos ML...') // Status do processamento ML
+  const [loading, setLoading] = useState(false) // Estado de carregamento
+  const [error, setError] = useState('') // Mensagens de erro
+  
+  // Contadores e estados de controle
+  const [dailyTradeCount, setDailyTradeCount] = useState(0) // Contador de operações diárias
+  const [lastTradeReset, setLastTradeReset] = useState(new Date().toDateString()) // Data do último reset do contador
+  const [openTrades, setOpenTrades] = useState<OpenTrade[]>([]) // Operações abertas
+  const [autoClosedTrades, setAutoClosedTrades] = useState<any[]>([]) // Operações fechadas automaticamente
 
-  // Fetch market data from API
+  // Função para buscar dados de mercado da API
   const fetchMarketData = async () => {
     try {
+      console.log('🌐 Buscando dados de mercado...')
       const response = await fetch('/api/trading/market')
       const data = await response.json()
+      console.log('📊 Dados de mercado recebidos:', data)
       
       if (data.data) {
+        // Formata os dados dos ativos recebidos da API
         const formattedAssets = data.data.map((asset: any) => ({
           symbol: asset.symbol,
           name: asset.name,
           price: asset.price,
           change24h: asset.change_percent_24h,
           volume: asset.volume_24h,
-          mlPrediction: 'hold' as const, // Will be updated by predictions
+          mlPrediction: 'hold' as const, // Será atualizado pelas previsões ML
           confidence: 0
         }))
+        console.log('📋 Ativos formatados:', formattedAssets)
         setAssets(formattedAssets)
+        // Seleciona o primeiro ativo como padrão se nenhum estiver selecionado
         if (formattedAssets.length > 0 && !selectedAsset) {
           setSelectedAsset(formattedAssets[0].symbol)
         }
       }
     } catch (err) {
-      console.error('Error fetching market data:', err)
+      console.error('❌ Erro ao buscar dados de mercado:', err)
       setError('Failed to fetch market data')
     }
   }
 
-  // Fetch open trades and trade management data
+  // Função para buscar dados de gerenciamento de operações (operações abertas e fechadas automaticamente)
   const fetchTradeManagementData = async () => {
     try {
       const response = await fetch('/api/trading/close')
       const data = await response.json()
       
+      // Atualiza as listas de operações abertas e fechadas automaticamente
       setOpenTrades(data.open_trades || [])
       setAutoClosedTrades(data.auto_closed_trades || [])
       
-      // Show notifications for auto-closed trades
+      // Exibe notificações para operações fechadas automaticamente
       if (data.auto_closed_trades && data.auto_closed_trades.length > 0) {
         data.auto_closed_trades.forEach((trade: any) => {
-          console.log(`Trade ${trade.trade_id} auto-closed: ${trade.reason}`)
+          console.log(`Operação ${trade.trade_id} fechada automaticamente: ${trade.reason}`)
         })
       }
     } catch (err) {
@@ -139,46 +159,55 @@ export default function MLTradingBot() {
     }
   }
 
-  // Fetch portfolio data from API
+  // Função para buscar dados do portfólio da API
   const fetchPortfolioData = async () => {
     try {
       const response = await fetch('/api/trading/execute')
       const data = await response.json()
       
       if (data.portfolio) {
+        // Calcula o valor total do portfólio somando todos os ativos
         const totalValue = Object.entries(data.portfolio).reduce((sum: number, [symbol, amount]: [string, any]) => {
           if (symbol === 'USD') return sum + amount
           const price = data.current_prices[symbol] || 0
           return sum + (amount * price)
         }, 0)
         
+        // Calcula a variação diária com base no valor anterior do portfólio
+        const dailyChange = previousPortfolioValue > 0 ? totalValue - previousPortfolioValue : 0
+        
         setPortfolio({
           totalValue,
-          dailyChange: portfolio.dailyChange, // Keep existing daily change
+          dailyChange,
           assets: Object.entries(data.portfolio).map(([symbol, amount]: [string, any]) => ({
             symbol,
             amount,
             value: symbol === 'USD' ? amount : amount * (data.current_prices[symbol] || 0),
-            change: 0 // Will be calculated based on price changes
+            change: 0 // Será calculado com base nas mudanças de preço
           }))
         })
+        
+        // Atualiza o valor anterior do portfólio para o próximo cálculo
+        setPreviousPortfolioValue(totalValue)
       }
     } catch (err) {
       console.error('Error fetching portfolio data:', err)
     }
   }
 
-  // Get ML prediction for an asset
+  // Função para obter previsão de Machine Learning para um ativo específico
   const getPrediction = async (symbol: string) => {
     try {
+      console.log(`🔮 Buscando previsão ML para ${symbol}...`)
       const response = await fetch('/api/trading/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol })
       })
       const prediction = await response.json()
+      console.log(`📈 Previsão recebida para ${symbol}:`, prediction)
       
-      // Update asset with prediction
+      // Atualiza o ativo com a previsão recebida
       setAssets(prev => prev.map(asset => 
         asset.symbol === symbol 
           ? { 
@@ -191,12 +220,12 @@ export default function MLTradingBot() {
       
       return prediction
     } catch (err) {
-      console.error('Error getting prediction:', err)
+      console.error(`❌ Erro ao obter previsão para ${symbol}:`, err)
       return null
     }
   }
 
-  // Execute trade via API
+  // Função para executar uma operação de trading através da API
   const executeTradeAPI = async (symbol: string, type: 'buy' | 'sell', amount: number, mlConfidence?: number, takeProfit?: number, stopLoss?: number) => {
     try {
       setLoading(true)
@@ -218,7 +247,7 @@ export default function MLTradingBot() {
       const result = await response.json()
       
       if (result.success) {
-        // Update daily trade count
+        // Atualiza o contador de operações diárias
         const today = new Date().toDateString()
         if (today !== lastTradeReset) {
           setDailyTradeCount(1)
@@ -227,7 +256,7 @@ export default function MLTradingBot() {
           setDailyTradeCount(prev => prev + 1)
         }
         
-        // Add trade to history
+        // Adiciona a operação ao histórico
         const newTrade: Trade = {
           id: result.trade_id,
           symbol: result.symbol,
@@ -241,10 +270,10 @@ export default function MLTradingBot() {
         
         setTrades(prev => [newTrade, ...prev])
         
-        // Update portfolio
+        // Atualiza o portfólio
         await fetchPortfolioData()
         
-        // Update open trades
+        // Atualiza as operações abertas
         await fetchTradeManagementData()
         
         return result
@@ -261,46 +290,66 @@ export default function MLTradingBot() {
     }
   }
 
-  // Initialize data and set up real-time updates
+  // Hook useEffect para inicialização de dados e configuração de atualizações em tempo real
   useEffect(() => {
     const initializeData = async () => {
-      // Fetch initial data from APIs
+      console.log('🚀 Inicializando dados da aplicação...')
+      console.log('📊 Estado inicial:', {
+        isBotActive,
+        isAutoTradeEnabled,
+        dailyTradeCount,
+        autoTradeSettings
+      })
+      
+      // Busca dados iniciais das APIs
       await fetchMarketData()
       await fetchPortfolioData()
       await fetchTradeManagementData()
       
-      // Get initial predictions for enabled assets
+      // Obtém previsões iniciais para os ativos habilitados
       const enabledAssets = autoTradeSettings.enabledAssets
+      console.log('🎯 Ativos habilitados para previsões iniciais:', enabledAssets)
       for (const symbol of enabledAssets) {
         await getPrediction(symbol)
       }
+      
+      console.log('✅ Inicialização concluída!')
+      console.log('📊 Estado final dos ativos:', assets)
     }
 
     initializeData()
 
-    // Simulate real-time price updates
+    // Configura atualizações em tempo real dos preços
     const priceInterval = setInterval(async () => {
       try {
         const symbols = assets.map(asset => asset.symbol)
+        if (symbols.length === 0) {
+          console.log('⏭️ Nenhum ativo disponível para atualizar preços')
+          return
+        }
+        
+        console.log('🔄 Atualizando preços dos ativos:', symbols)
         const response = await fetch('/api/trading/market', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ symbols })
         })
         const data = await response.json()
+        console.log('📊 Dados atualizados recebidos:', data)
         
         if (data.updated_data) {
+          // Atualiza os preços dos ativos com os dados recebidos
           setAssets(prev => prev.map(asset => {
             const updated = data.updated_data.find((u: any) => u.symbol === asset.symbol)
             return updated ? { ...asset, price: updated.price, change24h: updated.change_percent_24h } : asset
           }))
         }
       } catch (err) {
-        console.error('Error updating prices:', err)
+        console.error('❌ Erro ao atualizar preços:', err)
       }
-    }, 3000)
+    }, 3000) // Atualiza a cada 3 segundos
 
-    // Simulate ML status updates
+    // Simula atualizações de status do ML
     const mlInterval = setInterval(() => {
       const statuses = [
         'Analisando padrões de mercado...',
@@ -310,30 +359,54 @@ export default function MLTradingBot() {
         'Otimizando estratégia de trading...'
       ]
       setMlStatus(statuses[Math.floor(Math.random() * statuses.length)])
-    }, 5000)
+    }, 5000) // Atualiza a cada 5 segundos
 
-    // Auto trading logic
+    // Lógica de trading automático
     const autoTradeInterval = setInterval(async () => {
+      console.log('⏰ Intervalo de auto trade acionado...')
+      console.log('🤖 Status:', { isBotActive, isAutoTradeEnabled })
       if (isBotActive && isAutoTradeEnabled) {
+        console.log('🚀 Iniciando execução de auto trade...')
         await executeAutoTradeAPI()
+      } else {
+        console.log('⏸️ Auto trade pausado - bot não ativo ou auto trade desativado')
       }
-    }, autoTradeSettings.tradeInterval * 1000)
+    }, autoTradeSettings.tradeInterval * 1000) // Executa conforme intervalo configurado
 
-    // Trade management monitoring
+    // Monitoramento de gerenciamento de operações
     const tradeManagementInterval = setInterval(async () => {
       if (isBotActive) {
         await fetchTradeManagementData()
       }
-    }, 10000) // Check every 10 seconds for auto-close conditions
+    }, 10000) // Verifica a cada 10 segundos condições de fechamento automático
+
+    // Log de depuração do estado do auto trade
+    const debugInterval = setInterval(() => {
+      console.log('🔍 Estado do Auto Trade:', {
+        isBotActive,
+        isAutoTradeEnabled,
+        dailyTradeCount,
+        maxDailyTrades: autoTradeSettings.maxDailyTrades,
+        assetsCount: assets.length,
+        eligibleAssets: assets.filter(asset => 
+          autoTradeSettings.enabledAssets.includes(asset.symbol) &&
+          asset.confidence >= autoTradeSettings.minConfidence &&
+          asset.mlPrediction !== 'hold'
+        ).length
+      })
+    }, 30000) // Log a cada 30 segundos
 
     return () => {
+      // Limpa todos os intervalos quando o componente é desmontado
       clearInterval(priceInterval)
       clearInterval(mlInterval)
       clearInterval(autoTradeInterval)
       clearInterval(tradeManagementInterval)
+      clearInterval(debugInterval)
     }
   }, [isBotActive, isAutoTradeEnabled, autoTradeSettings.tradeInterval, assets.length])
 
+  // Função para executar operação manual de trading
   const executeTrade = async (type: 'buy' | 'sell') => {
     if (!selectedAsset || !tradeAmount) return
 
@@ -343,7 +416,7 @@ export default function MLTradingBot() {
       return
     }
 
-    // Get the current prediction for the selected asset
+    // Obtém a previsão atual para o ativo selecionado
     const asset = assets.find(a => a.symbol === selectedAsset)
     if (!asset) return
 
@@ -351,7 +424,7 @@ export default function MLTradingBot() {
     setTradeAmount('')
   }
 
-  // Close trade via API
+  // Função para fechar uma operação através da API
   const closeTradeAPI = async (tradeId: string, reason: 'take_profit' | 'stop_loss' | 'manual' | 'ml_signal') => {
     try {
       setLoading(true)
@@ -369,10 +442,10 @@ export default function MLTradingBot() {
       const result = await response.json()
       
       if (result.success) {
-        // Update open trades
+        // Atualiza as operações abertas
         await fetchTradeManagementData()
         
-        // Update portfolio
+        // Atualiza o portfólio
         await fetchPortfolioData()
         
         return result
@@ -389,44 +462,68 @@ export default function MLTradingBot() {
     }
   }
 
+  // Função para executar trading automático baseado em previsões ML
   const executeAutoTradeAPI = async () => {
-    // Check daily trade limit
+    console.log('🤖 Iniciando execução de auto trade...')
+    console.log('📊 Status:', { isBotActive, isAutoTradeEnabled })
+    console.log('📈 Contador diário:', dailyTradeCount, '/', autoTradeSettings.maxDailyTrades)
+    
+    // Verifica se atingiu o limite diário de operações
     if (dailyTradeCount >= autoTradeSettings.maxDailyTrades) {
-      console.log('Daily trade limit reached')
+      console.log('❌ Limite diário de operações atingido')
       return
     }
 
-    // Find assets that meet auto trade criteria
+    // Encontra ativos que atendem aos critérios de trading automático
+    console.log('🔍 Verificando ativos elegíveis...')
+    console.log('📋 Ativos disponíveis:', assets.length)
+    console.log('⚙️ Configurações:', autoTradeSettings)
+    
     const eligibleAssets = assets.filter(asset => 
       autoTradeSettings.enabledAssets.includes(asset.symbol) &&
       asset.confidence >= autoTradeSettings.minConfidence &&
       asset.mlPrediction !== 'hold'
     )
 
+    console.log('✅ Ativos elegíveis encontrados:', eligibleAssets.length)
+    console.log('📊 Detalhes dos ativos elegíveis:', eligibleAssets.map(a => ({
+      symbol: a.symbol,
+      confidence: a.confidence,
+      prediction: a.mlPrediction
+    })))
+
     if (eligibleAssets.length === 0) {
-      console.log('No eligible assets for auto trading')
+      console.log('❌ Nenhum ativo elegível para trading automático')
       return
     }
 
-    // Select the asset with highest confidence
+    // Seleciona o ativo com maior confiança
     const selectedAsset = eligibleAssets.reduce((prev, current) => 
       current.confidence > prev.confidence ? current : prev
     )
 
-    // Get fresh prediction for the selected asset
+    console.log('🎯 Ativo selecionado:', selectedAsset.symbol, 'com confiança:', selectedAsset.confidence)
+
+    // Obtém previsão atualizada para o ativo selecionado
+    console.log('🔮 Obtendo previsão atualizada...')
     const prediction = await getPrediction(selectedAsset.symbol)
+    console.log('📈 Previsão recebida:', prediction)
+    
     if (!prediction || prediction.confidence < autoTradeSettings.minConfidence) {
-      console.log('Prediction confidence too low')
+      console.log('❌ Confiança da previsão muito baixa:', prediction?.confidence)
       return
     }
 
-    // Calculate trade amount based on risk settings
+    // Calcula o valor da operação baseado nas configurações de risco
+    console.log('💰 Calculando valor da operação...')
     const baseAmount = botSettings.maxTradeSize * autoTradeSettings.riskMultiplier
     const riskMultiplier = botSettings.riskLevel === 'low' ? 0.5 : 
                           botSettings.riskLevel === 'medium' ? 1.0 : 1.5
-    const tradeAmount = Math.min(baseAmount * riskMultiplier, portfolio.totalValue * 0.1) // Max 10% of portfolio
+    const tradeAmount = Math.min(baseAmount * riskMultiplier, portfolio.totalValue * 0.1) // Máximo 10% do portfólio
+    
+    console.log('💵 Valor calculado:', tradeAmount, 'baseAmount:', baseAmount, 'riskMultiplier:', riskMultiplier)
 
-    // Calculate TP/SL based on bot settings
+    // Calcula Take Profit e Stop Loss baseado nas configurações do bot
     const takeProfitPercent = botSettings.takeProfit / 100
     const stopLossPercent = botSettings.stopLoss / 100
     
@@ -438,7 +535,10 @@ export default function MLTradingBot() {
       ? selectedAsset.price * (1 - stopLossPercent)
       : selectedAsset.price * (1 + stopLossPercent)
 
-    // Execute the trade
+    console.log('📊 TP/SL calculados:', { takeProfit, stopLoss, prediction: prediction.prediction })
+
+    // Executa a operação
+    console.log('🚀 Executando operação...')
     const result = await executeTradeAPI(
       selectedAsset.symbol, 
       prediction.prediction, 
@@ -449,10 +549,13 @@ export default function MLTradingBot() {
     )
 
     if (result) {
-      console.log('Auto trade executed successfully:', result)
+      console.log('✅ Operação automática executada com sucesso:', result)
+    } else {
+      console.log('❌ Falha ao executar operação automática')
     }
   }
 
+  // Funções para alternar estados do bot e trading automático
   const toggleBot = () => {
     setIsBotActive(!isBotActive)
   }
@@ -461,10 +564,12 @@ export default function MLTradingBot() {
     setIsAutoTradeEnabled(!isAutoTradeEnabled)
   }
 
+  // Função para atualizar configurações do trading automático
   const updateAutoTradeSetting = (key: string, value: any) => {
     setAutoTradeSettings(prev => ({ ...prev, [key]: value }))
   }
 
+  // Funções utilitárias para formatação de previsões ML
   const getPredictionColor = (prediction: string) => {
     switch (prediction) {
       case 'buy': return 'text-green-400'
@@ -484,7 +589,7 @@ export default function MLTradingBot() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white p-4">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        {/* Cabeçalho da aplicação */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Brain className="h-8 w-8 text-blue-400" />
@@ -518,7 +623,7 @@ export default function MLTradingBot() {
           </div>
         </div>
 
-        {/* Portfolio Overview */}
+        {/* Visão geral do portfólio */}
         <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -531,8 +636,8 @@ export default function MLTradingBot() {
               <div className="space-y-2">
                 <div className="text-sm text-gray-400">Valor Total</div>
                 <div className="text-2xl font-bold">${portfolio.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div className={`flex items-center space-x-1 ${portfolio.dailyChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {portfolio.dailyChange >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <div className={`flex items-center space-x-1 ${portfolio.dailyChange > 0 ? 'text-green-400' : portfolio.dailyChange < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {portfolio.dailyChange > 0 ? <TrendingUp className="h-4 w-4" /> : portfolio.dailyChange < 0 ? <TrendingDown className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
                   <span className="text-sm">${Math.abs(portfolio.dailyChange).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (24h)</span>
                 </div>
               </div>
@@ -576,14 +681,14 @@ export default function MLTradingBot() {
 
           <TabsContent value="trading" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Trading Panel */}
+              {/* Painel de Trading */}
               <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle>Trade Rápido</CardTitle>
                   <CardDescription>Execute trades instantaneamente</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Error Display */}
+                  {/* Exibição de erros */}
                   {error && (
                     <Alert className="border-red-600 bg-red-900/20">
                       <AlertDescription className="text-red-400">
@@ -636,7 +741,7 @@ export default function MLTradingBot() {
                     </Button>
                   </div>
                   
-                  {/* Asset Prediction Info */}
+                  {/* Informações de previsão do ativo */}
                   {selectedAsset && (
                     <div className="mt-4 p-3 bg-gray-700/50 rounded-lg">
                       <div className="flex items-center justify-between">
@@ -658,7 +763,7 @@ export default function MLTradingBot() {
                 </CardContent>
               </Card>
 
-              {/* Bot Settings */}
+              {/* Configurações do Bot */}
               <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
@@ -931,7 +1036,7 @@ export default function MLTradingBot() {
                             </div>
                           </div>
 
-                          {/* Progress indicators for TP/SL */}
+                          {/* Indicadores de progresso para TP/SL */}
                           {(trade.take_profit || trade.stop_loss) && (
                             <div className="mt-3 space-y-2">
                               {trade.take_profit && (
@@ -995,7 +1100,7 @@ export default function MLTradingBot() {
               </CardContent>
             </Card>
 
-            {/* Auto-closed trades notification */}
+            {/* Notificação de operações fechadas automaticamente */}
             {autoClosedTrades.length > 0 && (
               <Card className="bg-orange-900/20 border-orange-600 backdrop-blur-sm">
                 <CardHeader>
