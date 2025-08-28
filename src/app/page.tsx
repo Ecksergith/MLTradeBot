@@ -51,6 +51,14 @@ export default function MLTradingBot() {
   const [portfolio, setPortfolio] = useState<Portfolio>({ totalValue: 0, dailyChange: 0, assets: [] })
   const [trades, setTrades] = useState<Trade[]>([])
   const [isBotActive, setIsBotActive] = useState(false)
+  const [isAutoTradeEnabled, setIsAutoTradeEnabled] = useState(false)
+  const [autoTradeSettings, setAutoTradeSettings] = useState({
+    enabledAssets: ['BTC', 'ETH', 'SOL'],
+    minConfidence: 75,
+    maxDailyTrades: 10,
+    tradeInterval: 30, // segundos
+    riskMultiplier: 1.0
+  })
   const [botSettings, setBotSettings] = useState({
     riskLevel: 'medium',
     maxTradeSize: 1000,
@@ -127,11 +135,19 @@ export default function MLTradingBot() {
       setMlStatus(statuses[Math.floor(Math.random() * statuses.length)])
     }, 5000)
 
+    // Auto trading logic
+    const autoTradeInterval = setInterval(() => {
+      if (isBotActive && isAutoTradeEnabled) {
+        executeAutoTrade()
+      }
+    }, autoTradeSettings.tradeInterval * 1000)
+
     return () => {
       clearInterval(priceInterval)
       clearInterval(mlInterval)
+      clearInterval(autoTradeInterval)
     }
-  }, [])
+  }, [isBotActive, isAutoTradeEnabled, autoTradeSettings.tradeInterval])
 
   const executeTrade = (type: 'buy' | 'sell') => {
     if (!selectedAsset || !tradeAmount) return
@@ -155,8 +171,69 @@ export default function MLTradingBot() {
     setTradeAmount('')
   }
 
+  const executeAutoTrade = () => {
+    // Check daily trade limit
+    const today = new Date().toDateString()
+    const todayTrades = trades.filter(trade => 
+      new Date(trade.timestamp).toDateString() === today
+    )
+    
+    if (todayTrades.length >= autoTradeSettings.maxDailyTrades) {
+      return
+    }
+
+    // Find assets that meet auto trade criteria
+    const eligibleAssets = assets.filter(asset => 
+      autoTradeSettings.enabledAssets.includes(asset.symbol) &&
+      asset.confidence >= autoTradeSettings.minConfidence &&
+      asset.mlPrediction !== 'hold'
+    )
+
+    if (eligibleAssets.length === 0) return
+
+    // Select the asset with highest confidence
+    const selectedAsset = eligibleAssets.reduce((prev, current) => 
+      current.confidence > prev.confidence ? current : prev
+    )
+
+    // Calculate trade amount based on risk settings
+    const baseAmount = botSettings.maxTradeSize * autoTradeSettings.riskMultiplier
+    const riskMultiplier = botSettings.riskLevel === 'low' ? 0.5 : 
+                          botSettings.riskLevel === 'medium' ? 1.0 : 1.5
+    const tradeAmount = baseAmount * riskMultiplier
+
+    const newTrade: Trade = {
+      id: Date.now().toString(),
+      symbol: selectedAsset.symbol,
+      type: selectedAsset.mlPrediction,
+      amount: tradeAmount,
+      price: selectedAsset.price,
+      timestamp: new Date().toLocaleString(),
+      profit: selectedAsset.mlPrediction === 'buy' ? 
+        Math.random() * 100 - 30 : Math.random() * 80 - 30,
+      mlConfidence: selectedAsset.confidence
+    }
+
+    setTrades(prev => [newTrade, ...prev])
+
+    // Update portfolio
+    setPortfolio(prev => ({
+      ...prev,
+      totalValue: prev.totalValue + (newTrade.profit || 0),
+      dailyChange: prev.dailyChange + (newTrade.profit || 0)
+    }))
+  }
+
   const toggleBot = () => {
     setIsBotActive(!isBotActive)
+  }
+
+  const toggleAutoTrade = () => {
+    setIsAutoTradeEnabled(!isAutoTradeEnabled)
+  }
+
+  const updateAutoTradeSetting = (key: string, value: any) => {
+    setAutoTradeSettings(prev => ({ ...prev, [key]: value }))
   }
 
   const getPredictionColor = (prediction: string) => {
@@ -194,12 +271,21 @@ export default function MLTradingBot() {
               <div className="text-sm text-gray-400">Status ML</div>
               <div className="text-sm text-blue-400">{mlStatus}</div>
             </div>
-            <Button
-              onClick={toggleBot}
-              className={`${isBotActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
-            >
-              {isBotActive ? 'Parar Bot' : 'Iniciar Bot'}
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                onClick={toggleAutoTrade}
+                className={`${isAutoTradeEnabled ? 'bg-orange-600 hover:bg-orange-700' : 'bg-gray-600 hover:bg-gray-700'}`}
+                disabled={!isBotActive}
+              >
+                {isAutoTradeEnabled ? 'Auto Trade ON' : 'Auto Trade OFF'}
+              </Button>
+              <Button
+                onClick={toggleBot}
+                className={`${isBotActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+              >
+                {isBotActive ? 'Parar Bot' : 'Iniciar Bot'}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -241,10 +327,11 @@ export default function MLTradingBot() {
         </Card>
 
         <Tabs defaultValue="trading" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-gray-800">
+          <TabsList className="grid w-full grid-cols-5 bg-gray-800">
             <TabsTrigger value="trading" className="data-[state=active]:bg-gray-700">Trading</TabsTrigger>
             <TabsTrigger value="assets" className="data-[state=active]:bg-gray-700">Ativos</TabsTrigger>
             <TabsTrigger value="predictions" className="data-[state=active]:bg-gray-700">Previsões ML</TabsTrigger>
+            <TabsTrigger value="autotrade" className="data-[state=active]:bg-gray-700">Auto Trade</TabsTrigger>
             <TabsTrigger value="history" className="data-[state=active]:bg-gray-700">Histórico</TabsTrigger>
           </TabsList>
 
@@ -483,6 +570,151 @@ export default function MLTradingBot() {
                       </div>
                     ))}
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="autotrade" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Settings className="h-5 w-5" />
+                    <span>Configurações de Auto Trade</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Ativos Habilitados</Label>
+                    <div className="space-y-2">
+                      {['BTC', 'ETH', 'SOL', 'ADA', 'DOT'].map(asset => (
+                        <div key={asset} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={autoTradeSettings.enabledAssets.includes(asset)}
+                            onChange={(e) => {
+                              const newAssets = e.target.checked
+                                ? [...autoTradeSettings.enabledAssets, asset]
+                                : autoTradeSettings.enabledAssets.filter(a => a !== asset)
+                              updateAutoTradeSetting('enabledAssets', newAssets)
+                            }}
+                            className="rounded border-gray-600 bg-gray-700"
+                          />
+                          <Label>{asset}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Confiança Mínima: {autoTradeSettings.minConfidence}%</Label>
+                    <Input
+                      type="range"
+                      min="50"
+                      max="95"
+                      value={autoTradeSettings.minConfidence}
+                      onChange={(e) => updateAutoTradeSetting('minConfidence', parseInt(e.target.value))}
+                      className="bg-gray-700"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Máximo de Trades por Dia: {autoTradeSettings.maxDailyTrades}</Label>
+                    <Input
+                      type="range"
+                      min="1"
+                      max="50"
+                      value={autoTradeSettings.maxDailyTrades}
+                      onChange={(e) => updateAutoTradeSetting('maxDailyTrades', parseInt(e.target.value))}
+                      className="bg-gray-700"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Intervalo entre Trades: {autoTradeSettings.tradeInterval}s</Label>
+                    <Input
+                      type="range"
+                      min="10"
+                      max="300"
+                      step="10"
+                      value={autoTradeSettings.tradeInterval}
+                      onChange={(e) => updateAutoTradeSetting('tradeInterval', parseInt(e.target.value))}
+                      className="bg-gray-700"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Multiplicador de Risco: {autoTradeSettings.riskMultiplier}x</Label>
+                    <Input
+                      type="range"
+                      min="0.1"
+                      max="3.0"
+                      step="0.1"
+                      value={autoTradeSettings.riskMultiplier}
+                      onChange={(e) => updateAutoTradeSetting('riskMultiplier', parseFloat(e.target.value))}
+                      className="bg-gray-700"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle>Status do Auto Trade</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span>Status</span>
+                      <Badge className={isAutoTradeEnabled ? 'bg-green-600' : 'bg-gray-600'}>
+                        {isAutoTradeEnabled ? 'ATIVO' : 'INATIVO'}
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span>Bot Principal</span>
+                      <Badge className={isBotActive ? 'bg-green-600' : 'bg-red-600'}>
+                        {isBotActive ? 'ATIVO' : 'INATIVO'}
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span>Ativos Monitorados</span>
+                      <span>{autoTradeSettings.enabledAssets.length}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span>Trades Hoje</span>
+                      <span>{trades.filter(t => new Date(t.timestamp).toDateString() === new Date().toDateString()).length}/{autoTradeSettings.maxDailyTrades}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span>Próximo Trade</span>
+                      <span>{autoTradeSettings.tradeInterval}s</span>
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold">Regras Atuais</div>
+                    <div className="text-sm text-gray-400 space-y-1">
+                      <div>• Executar apenas quando confiança ≥ {autoTradeSettings.minConfidence}%</div>
+                      <div>• Limitar a {autoTradeSettings.maxDailyTrades} trades por dia</div>
+                      <div>• Intervalo mínimo de {autoTradeSettings.tradeInterval} segundos</div>
+                      <div>• Multiplicador de risco: {autoTradeSettings.riskMultiplier}x</div>
+                      <div>• Apenas ativos selecionados</div>
+                    </div>
+                  </div>
+                  
+                  <Button
+                    onClick={toggleAutoTrade}
+                    className={`w-full ${isAutoTradeEnabled ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                    disabled={!isBotActive}
+                  >
+                    {isAutoTradeEnabled ? 'Desativar Auto Trade' : 'Ativar Auto Trade'}
+                  </Button>
                 </CardContent>
               </Card>
             </div>
