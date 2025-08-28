@@ -1,0 +1,416 @@
+import { NextRequest, NextResponse } from 'next/server'
+import ZAI from 'z-ai-web-dev-sdk'
+
+interface OpenTrade {
+  id: string
+  symbol: string
+  type: 'buy' | 'sell'
+  amount: number
+  entry_price: number
+  current_price: number
+  quantity: number
+  timestamp: string
+  take_profit?: number
+  stop_loss?: number
+  ml_confidence: number
+  unrealized_pnl: number
+  status: 'open' | 'closed'
+}
+
+interface CloseTradeRequest {
+  trade_id: string
+  reason: 'take_profit' | 'stop_loss' | 'manual' | 'ml_signal'
+  current_price?: number
+}
+
+interface CloseTradeResponse {
+  success: boolean
+  trade_id: string
+  close_price: number
+  close_timestamp: string
+  realized_pnl: number
+  fees: number
+  reason: string
+  message: string
+}
+
+// Mock open trades storage (in a real app, this would be in a database)
+let openTrades: OpenTrade[] = []
+let tradeHistory: any[] = []
+
+// Mock current prices
+const mockPrices: Record<string, number> = {
+  'BTC': 45234.56,
+  'ETH': 2345.67,
+  'SOL': 98.76,
+  'ADA': 0.45,
+  'DOT': 7.89
+}
+
+// Mock portfolio balances
+const mockPortfolio: Record<string, number> = {
+  'USD': 10000,
+  'BTC': 0.5,
+  'ETH': 3.2,
+  'SOL': 10,
+  'ADA': 1000,
+  'DOT': 50
+}
+
+function calculateFees(amount: number): number {
+  return amount * 0.001 // 0.1% fee
+}
+
+function updateTradePrices(): void {
+  // Update current prices for all open trades
+  openTrades.forEach(trade => {
+    trade.current_price = mockPrices[trade.symbol]
+    trade.unrealized_pnl = trade.type === 'buy' 
+      ? (trade.current_price - trade.entry_price) * trade.quantity
+      : (trade.entry_price - trade.current_price) * trade.quantity
+  })
+}
+
+async function generateLSTMCloseSignal(trade: OpenTrade): Promise<{
+  should_close: boolean
+  confidence: number
+  reasoning: string
+  expected_move: number
+}> {
+  try {
+    const zai = await ZAI.create()
+    
+    const priceChange = ((trade.current_price - trade.entry_price) / trade.entry_price) * 100
+    const unrealizedPnLPercent = (trade.unrealized_pnl / (trade.entry_price * trade.quantity)) * 100
+    
+    const prompt = `
+    Analyze the following open trade position and provide a close recommendation:
+    
+    Trade Details:
+    - Symbol: ${trade.symbol}
+    - Type: ${trade.type}
+    - Entry Price: $${trade.entry_price.toFixed(2)}
+    - Current Price: $${trade.current_price.toFixed(2)}
+    - Price Change: ${priceChange.toFixed(2)}%
+    - Unrealized P&L: ${unrealizedPnLPercent.toFixed(2)}%
+    - ML Confidence at Entry: ${trade.ml_confidence}%
+    - Trade Duration: ${Math.floor((Date.now() - new Date(trade.timestamp).getTime()) / (1000 * 60 * 60))} hours
+    
+    Based on LSTM analysis and market patterns, provide:
+    1. Close recommendation (true/false)
+    2. Confidence level (0-100%)
+    3. Brief reasoning
+    4. Expected additional price movement in percentage if held
+    
+    Consider factors such as:
+    - Profit-taking opportunities
+    - Risk reversal signals
+    - Market momentum exhaustion
+    - Time-based decay of edge
+    
+    Format your response as JSON:
+    {
+      "should_close": true,
+      "confidence": 85,
+      "reasoning": "Technical indicators suggest...",
+      "expected_move": 1.5
+    }
+    `
+    
+    const completion = await zai.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert AI trading analyst specializing in position management and exit timing. Analyze open positions and provide optimal close recommendations based on LSTM analysis and market conditions.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3
+    })
+    
+    const response = completion.choices[0]?.message?.content
+    
+    if (response) {
+      try {
+        const parsed = JSON.parse(response)
+        return {
+          should_close: parsed.should_close,
+          confidence: parsed.confidence,
+          reasoning: parsed.reasoning,
+          expected_move: parsed.expected_move
+        }
+      } catch (parseError) {
+        return generateRuleBasedCloseSignal(trade)
+      }
+    }
+    
+    return generateRuleBasedCloseSignal(trade)
+    
+  } catch (error) {
+    console.error('LSTM close signal error:', error)
+    return generateRuleBasedCloseSignal(trade)
+  }
+}
+
+function generateRuleBasedCloseSignal(trade: OpenTrade): {
+  should_close: boolean
+  confidence: number
+  reasoning: string
+  expected_move: number
+} {
+  const priceChange = ((trade.current_price - trade.entry_price) / trade.entry_price) * 100
+  const unrealizedPnLPercent = (trade.unrealized_pnl / (trade.entry_price * trade.quantity)) * 100
+  
+  // Rule-based close signals
+  if (Math.abs(unrealizedPnLPercent) >= 10) {
+    return {
+      should_close: true,
+      confidence: 90,
+      reasoning: `Target profit/loss reached: ${unrealizedPnLPercent.toFixed(2)}%`,
+      expected_move: 0
+    }
+  }
+  
+  if (Math.abs(priceChange) >= 5) {
+    return {
+      should_close: true,
+      confidence: 75,
+      reasoning: `Significant price movement: ${priceChange.toFixed(2)}%`,
+      expected_move: priceChange * 0.3
+    }
+  }
+  
+  // Time-based close (after 24 hours)
+  const tradeDuration = Date.now() - new Date(trade.timestamp).getTime()
+  if (tradeDuration > 24 * 60 * 60 * 1000) { // 24 hours
+    return {
+      should_close: true,
+      confidence: 60,
+      reasoning: 'Maximum trade duration reached',
+      expected_move: 0
+    }
+  }
+  
+  return {
+    should_close: false,
+    confidence: 30,
+    reasoning: 'Hold position - no strong close signals',
+    expected_move: priceChange * 0.1
+  }
+}
+
+function checkTakeProfitStopLoss(trade: OpenTrade): {
+  should_close: boolean
+  reason: 'take_profit' | 'stop_loss' | 'none'
+  current_price: number
+} {
+  const currentPrice = trade.current_price
+  
+  if (trade.take_profit && trade.type === 'buy' && currentPrice >= trade.take_profit) {
+    return {
+      should_close: true,
+      reason: 'take_profit',
+      current_price
+    }
+  }
+  
+  if (trade.take_profit && trade.type === 'sell' && currentPrice <= trade.take_profit) {
+    return {
+      should_close: true,
+      reason: 'take_profit',
+      current_price
+    }
+  }
+  
+  if (trade.stop_loss && trade.type === 'buy' && currentPrice <= trade.stop_loss) {
+    return {
+      should_close: true,
+      reason: 'stop_loss',
+      current_price
+    }
+  }
+  
+  if (trade.stop_loss && trade.type === 'sell' && currentPrice >= trade.stop_loss) {
+    return {
+      should_close: true,
+      reason: 'stop_loss',
+      current_price
+    }
+  }
+  
+  return {
+    should_close: false,
+    reason: 'none',
+    current_price
+  }
+}
+
+function closeTrade(trade: OpenTrade, reason: 'take_profit' | 'stop_loss' | 'manual' | 'ml_signal', closePrice?: number): CloseTradeResponse {
+  const price = closePrice || trade.current_price
+  const fees = calculateFees(trade.amount)
+  const realizedPnL = trade.type === 'buy' 
+    ? (price - trade.entry_price) * trade.quantity - fees
+    : (trade.entry_price - price) * trade.quantity - fees
+  
+  // Update portfolio
+  if (trade.type === 'buy') {
+    mockPortfolio[trade.symbol] -= trade.quantity
+    mockPortfolio['USD'] += (price * trade.quantity) - fees
+  } else {
+    mockPortfolio['USD'] -= (price * trade.quantity) + fees
+    mockPortfolio[trade.symbol] += trade.quantity
+  }
+  
+  // Remove from open trades
+  openTrades = openTrades.filter(t => t.id !== trade.id)
+  
+  // Add to trade history
+  tradeHistory.push({
+    ...trade,
+    close_price: price,
+    close_timestamp: new Date().toISOString(),
+    realized_pnl: realizedPnL,
+    fees,
+    close_reason: reason,
+    status: 'closed'
+  })
+  
+  return {
+    success: true,
+    trade_id: trade.id,
+    close_price: price,
+    close_timestamp: new Date().toISOString(),
+    realized_pnl: realizedPnL,
+    fees,
+    reason,
+    message: `Trade closed successfully at $${price.toFixed(2)} (${reason})`
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { trade_id, reason, current_price }: CloseTradeRequest = body
+    
+    if (!trade_id || !reason) {
+      return NextResponse.json(
+        { error: 'Missing required fields: trade_id, reason' },
+        { status: 400 }
+      )
+    }
+    
+    if (!['take_profit', 'stop_loss', 'manual', 'ml_signal'].includes(reason)) {
+      return NextResponse.json(
+        { error: 'Invalid close reason' },
+        { status: 400 }
+      )
+    }
+    
+    // Update current prices
+    updateTradePrices()
+    
+    const trade = openTrades.find(t => t.id === trade_id)
+    if (!trade) {
+      return NextResponse.json(
+        { error: 'Trade not found or already closed' },
+        { status: 404 }
+      )
+    }
+    
+    const result = closeTrade(trade, reason, current_price)
+    
+    console.log('Trade closed:', result)
+    
+    return NextResponse.json(result)
+    
+  } catch (error) {
+    console.error('Trade close error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error during trade close' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function GET() {
+  try {
+    // Update current prices
+    updateTradePrices()
+    
+    // Check for automatic close conditions
+    const tradesToClose: OpenTrade[] = []
+    
+    for (const trade of openTrades) {
+      // Check TP/SL conditions
+      const tpSlCheck = checkTakeProfitStopLoss(trade)
+      if (tpSlCheck.should_close) {
+        tradesToClose.push(trade)
+        continue
+      }
+      
+      // Check LSTM signals for trades older than 1 hour
+      const tradeAge = Date.now() - new Date(trade.timestamp).getTime()
+      if (tradeAge > 60 * 60 * 1000) { // 1 hour
+        const lstmSignal = await generateLSTMCloseSignal(trade)
+        if (lstmSignal.should_close && lstmSignal.confidence > 70) {
+          tradesToClose.push(trade)
+        }
+      }
+    }
+    
+    // Close trades that meet conditions
+    const closeResults = []
+    for (const trade of tradesToClose) {
+      const tpSlCheck = checkTakeProfitStopLoss(trade)
+      if (tpSlCheck.should_close) {
+        const result = closeTrade(trade, tpSlCheck.reason)
+        closeResults.push(result)
+      } else {
+        const result = closeTrade(trade, 'ml_signal')
+        closeResults.push(result)
+      }
+    }
+    
+    return NextResponse.json({
+      open_trades: openTrades,
+      trade_history: tradeHistory.slice(-50), // Last 50 trades
+      auto_closed_trades: closeResults,
+      portfolio: mockPortfolio,
+      current_prices: mockPrices,
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('Trade management error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// Function to add a new trade (called from execute endpoint)
+export function addOpenTrade(trade: any) {
+  const quantity = trade.amount / trade.price
+  
+  const openTrade: OpenTrade = {
+    id: trade.trade_id,
+    symbol: trade.symbol,
+    type: trade.type,
+    amount: trade.amount,
+    entry_price: trade.price,
+    current_price: trade.price,
+    quantity,
+    timestamp: trade.timestamp,
+    take_profit: trade.type === 'buy' ? trade.price * 1.1 : trade.price * 0.9, // Default 10% TP
+    stop_loss: trade.type === 'buy' ? trade.price * 0.95 : trade.price * 1.05, // Default 5% SL
+    ml_confidence: trade.ml_confidence || 70,
+    unrealized_pnl: 0,
+    status: 'open'
+  }
+  
+  openTrades.push(openTrade)
+}

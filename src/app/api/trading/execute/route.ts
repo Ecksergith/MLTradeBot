@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { addOpenTrade } from '../close/route'
 
 interface TradeRequest {
   symbol: string
@@ -6,6 +7,8 @@ interface TradeRequest {
   amount: number
   price?: number
   ml_confidence?: number
+  take_profit?: number
+  stop_loss?: number
 }
 
 interface TradeResponse {
@@ -118,6 +121,21 @@ function executeTrade(trade: TradeRequest): TradeResponse {
     mockPortfolio['USD'] += (trade.amount - fees)
   }
   
+  // Add to open trades tracking
+  const tradeData = {
+    trade_id: tradeId,
+    symbol: trade.symbol,
+    type: trade.type,
+    amount: trade.amount,
+    price: executionPrice,
+    timestamp: new Date().toISOString(),
+    ml_confidence: trade.ml_confidence || 70,
+    take_profit: trade.take_profit,
+    stop_loss: trade.stop_loss
+  }
+  
+  addOpenTrade(tradeData)
+  
   return {
     success: true,
     trade_id: tradeId,
@@ -136,7 +154,7 @@ function executeTrade(trade: TradeRequest): TradeResponse {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { symbol, type, amount, price, ml_confidence }: TradeRequest = body
+    const { symbol, type, amount, price, ml_confidence, take_profit, stop_loss }: TradeRequest = body
     
     // Validate required fields
     if (!symbol || !type || !amount) {
@@ -160,7 +178,9 @@ export async function POST(request: NextRequest) {
       type,
       amount: parseFloat(amount.toString()),
       price: price ? parseFloat(price.toString()) : undefined,
-      ml_confidence: ml_confidence ? parseFloat(ml_confidence.toString()) : undefined
+      ml_confidence: ml_confidence ? parseFloat(ml_confidence.toString()) : undefined,
+      take_profit: take_profit ? parseFloat(take_profit.toString()) : undefined,
+      stop_loss: stop_loss ? parseFloat(stop_loss.toString()) : undefined
     })
     
     // Log the trade (in a real app, this would be stored in a database)
