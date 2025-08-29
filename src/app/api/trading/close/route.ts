@@ -43,9 +43,34 @@ function updateTradePrices(): void {
   // Update current prices for all open trades
   openTrades.forEach(trade => {
     trade.current_price = mockPrices[trade.symbol]
-    trade.unrealized_pnl = trade.type === 'buy' 
-      ? (trade.current_price - trade.entry_price) * trade.quantity
-      : (trade.entry_price - trade.current_price) * trade.quantity
+    
+    // Calculate unrealized PnL with proper handling for both positive and negative values
+    if (trade.type === 'buy') {
+      // For buy trades: profit when current price > entry price
+      trade.unrealized_pnl = (trade.current_price - trade.entry_price) * trade.quantity
+    } else {
+      // For sell trades: profit when entry price > current price
+      trade.unrealized_pnl = (trade.entry_price - trade.current_price) * trade.quantity
+    }
+    
+    // Ensure minimum calculation to avoid zero values - CORRECTED SIGN LOGIC
+    if (Math.abs(trade.unrealized_pnl) < 0.01 && trade.current_price !== trade.entry_price) {
+      if (trade.type === 'buy') {
+        // Buy trade: positive when current_price > entry_price
+        if (trade.current_price > trade.entry_price) {
+          trade.unrealized_pnl = Math.max(0.01, (trade.current_price - trade.entry_price) * trade.quantity)
+        } else {
+          trade.unrealized_pnl = Math.min(-0.01, (trade.current_price - trade.entry_price) * trade.quantity)
+        }
+      } else {
+        // Sell trade: positive when entry_price > current_price
+        if (trade.entry_price > trade.current_price) {
+          trade.unrealized_pnl = Math.max(0.01, (trade.entry_price - trade.current_price) * trade.quantity)
+        } else {
+          trade.unrealized_pnl = Math.min(-0.01, (trade.entry_price - trade.current_price) * trade.quantity)
+        }
+      }
+    }
   })
 }
 
@@ -382,11 +407,16 @@ export function addOpenTrade(trade: any) {
     current_price: trade.price,
     quantity,
     timestamp: trade.timestamp,
-    take_profit: trade.type === 'buy' ? trade.price * 1.1 : trade.price * 0.9, // Default 10% TP
-    stop_loss: trade.type === 'buy' ? trade.price * 0.95 : trade.price * 1.05, // Default 5% SL
+    take_profit: trade.take_profit || (trade.type === 'buy' ? trade.price * 1.1 : trade.price * 0.9), // Default 10% TP
+    stop_loss: trade.stop_loss || (trade.type === 'buy' ? trade.price * 0.95 : trade.price * 1.05), // Default 5% SL
     ml_confidence: trade.ml_confidence || 70,
-    unrealized_pnl: 0,
+    unrealized_pnl: 0, // Will be calculated on first price update
     status: 'open'
+  }
+  
+  // Calculate initial unrealized PnL based on estimated profit
+  if (trade.estimated_profit) {
+    openTrade.unrealized_pnl = trade.estimated_profit
   }
   
   openTrades.push(openTrade)

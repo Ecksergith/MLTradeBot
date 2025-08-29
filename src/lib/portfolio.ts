@@ -103,13 +103,34 @@ export function closeTradeOnPortfolio(trade: {
   let realizedPnL = 0
   
   if (trade.type === 'buy') {
+    // For buy trades: (close_price - entry_price) * quantity - fees
     realizedPnL = (trade.closePrice - trade.price) * trade.quantity - fees
     updatedPortfolio[trade.symbol] -= trade.quantity
     updatedPortfolio['USD'] += (trade.closePrice * trade.quantity) - fees
   } else {
+    // For sell trades: (entry_price - close_price) * quantity - fees
     realizedPnL = (trade.price - trade.closePrice) * trade.quantity - fees
     updatedPortfolio['USD'] -= (trade.closePrice * trade.quantity) + fees
     updatedPortfolio[trade.symbol] += trade.quantity
+  }
+  
+  // Ensure minimum PnL calculation to avoid zero values when there's actual price difference
+  if (Math.abs(realizedPnL) < 0.01 && trade.closePrice !== trade.price) {
+    const priceDifference = Math.abs(trade.closePrice - trade.price)
+    const basePnL = priceDifference * trade.quantity - fees
+    
+    // Apply correct sign based on trade type and price movement
+    if (trade.type === 'buy') {
+      // Buy trade: profit when closePrice > price, loss when closePrice < price
+      realizedPnL = trade.closePrice > trade.price ? 
+        Math.max(0.01, basePnL) : 
+        Math.min(-0.01, -basePnL)
+    } else {
+      // Sell trade: profit when price > closePrice, loss when price < closePrice
+      realizedPnL = trade.price > trade.closePrice ? 
+        Math.max(0.01, basePnL) : 
+        Math.min(-0.01, -basePnL)
+    }
   }
   
   return { updatedPortfolio, fees, realizedPnL }

@@ -51,12 +51,51 @@ function executeTrade(trade: TradeRequest): TradeResponse {
   // Simulate trade execution with slight price slippage
   const executionPrice = currentPrice * (1 + (Math.random() - 0.5) * 0.002)
   
-  // Calculate estimated profit (simplified for demo)
+  // Calculate estimated profit based on multiple factors
   let estimatedProfit = 0
-  if (trade.ml_confidence && trade.ml_confidence > 70) {
-    // Higher confidence trades have better expected outcomes
-    const profitMultiplier = (trade.ml_confidence - 70) / 30
-    estimatedProfit = trade.amount * 0.02 * profitMultiplier * (trade.type === 'buy' ? 1 : -1)
+  const baseProfitRate = 0.01 // 1% base profit rate
+  
+  if (trade.ml_confidence) {
+    // Calculate profit based on ML confidence - CORRECTED SIGN LOGIC
+    const confidenceMultiplier = Math.max(0.1, (trade.ml_confidence - 50) / 50) // Scale from 0.1 to 1.0
+    
+    // For buy trades: profit when price goes UP (positive)
+    // For sell trades: profit when price goes DOWN (positive)
+    const baseEstimatedProfit = trade.amount * baseProfitRate * confidenceMultiplier
+    
+    // Apply correct sign based on trade type
+    if (trade.type === 'buy') {
+      estimatedProfit = baseEstimatedProfit // Positive for buy (expecting price increase)
+    } else {
+      estimatedProfit = baseEstimatedProfit // Positive for sell (expecting price decrease)
+    }
+    
+    // Add some randomness for realism (can make it positive or negative)
+    const randomFactor = 0.8 + Math.random() * 0.4 // Random factor between 0.8 and 1.2
+    estimatedProfit *= randomFactor
+    
+    // Add some chance of loss for realism
+    if (Math.random() < 0.3) { // 30% chance of loss
+      estimatedProfit *= -0.5 // Convert to loss but smaller magnitude
+    }
+  } else {
+    // Default profit calculation when no ML confidence
+    if (trade.type === 'buy') {
+      estimatedProfit = trade.amount * baseProfitRate * 0.5 // Positive for buy
+    } else {
+      estimatedProfit = trade.amount * baseProfitRate * 0.5 // Positive for sell
+    }
+    
+    // Add randomness that can result in profit or loss
+    estimatedProfit *= (0.5 + Math.random()) // Random factor between 0.5 and 1.5
+    if (Math.random() < 0.4) { // 40% chance of loss
+      estimatedProfit *= -1
+    }
+  }
+  
+  // Ensure minimum profit/loss calculation (can be positive or negative)
+  if (Math.abs(estimatedProfit) < 0.01) {
+    estimatedProfit = Math.random() < 0.5 ? 0.01 : -0.01 // Random positive or negative
   }
   
   // Update portfolio using shared function
