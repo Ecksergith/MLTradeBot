@@ -488,7 +488,7 @@ export default function MLTradingBot() {
       addLog(`📊 [INIT] Estado final dos ativos: ${assets.length} ativos carregados`)
       
       // Inicia atualização automática de preços
-      startPriceAutoUpdate(15000) // Atualiza a cada 15 segundos
+      startPriceAutoUpdate(1000) // Atualiza a cada 1 segundo
       
       // Log detalhado do estado final dos ativos
       if (assets.length > 0) {
@@ -895,14 +895,6 @@ export default function MLTradingBot() {
                 className={`${isBotActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
               >
                 {isBotActive ? 'Parar Bot' : 'Iniciar Bot'}
-              </Button>
-              <Button
-                onClick={refreshAllPredictions}
-                className="bg-blue-600 hover:bg-blue-700"
-                disabled={!isBotActive}
-                title="Atualizar todas as previsões ML"
-              >
-                🔄
               </Button>
             </div>
           </div>
