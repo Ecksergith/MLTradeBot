@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
-import { mockPrices, mockPortfolio, calculateFees, closeTradeOnPortfolio } from '@/lib/portfolio'
+import { mockPrices, mockPortfolio, calculateFees, closeTradeOnPortfolio, tradeHistory, addTradeToHistory, TradeHistoryItem } from '@/lib/portfolio'
 
 interface OpenTrade {
   id: string
@@ -36,8 +36,7 @@ interface CloseTradeResponse {
 }
 
 // Mock open trades storage (in a real app, this would be in a database)
-let openTrades: OpenTrade[] = []
-let tradeHistory: any[] = []
+export let openTrades: OpenTrade[] = []
 
 function updateTradePrices(): void {
   // Update current prices for all open trades
@@ -247,7 +246,7 @@ function checkTakeProfitStopLoss(trade: OpenTrade): {
   return {
     should_close: false,
     reason: 'none',
-    current_price
+    current_price: trade.current_price
   }
 }
 
@@ -269,16 +268,20 @@ function closeTrade(trade: OpenTrade, reason: 'take_profit' | 'stop_loss' | 'man
   // Remove from open trades
   openTrades = openTrades.filter(t => t.id !== trade.id)
   
-  // Add to trade history
-  tradeHistory.push({
-    ...trade,
+  // Add to trade history using shared function
+  const historyItem: TradeHistoryItem = {
+    id: trade.id,
+    symbol: trade.symbol,
+    type: trade.type,
+    quantity: trade.quantity,
+    entry_price: trade.entry_price,
     close_price: price,
-    close_timestamp: new Date().toISOString(),
     realized_pnl: realizedPnL,
     fees,
-    close_reason: reason,
-    status: 'closed'
-  })
+    close_timestamp: new Date().toISOString(),
+    close_reason: reason
+  }
+  addTradeToHistory(historyItem)
   
   return {
     success: true,
@@ -376,9 +379,25 @@ export async function GET() {
       }
     }
     
+    // Log para depuração - mostrar o estado atual do histórico de trades
+    console.log(`📊 [CLOSE] Estado atual do histórico de trades fechados: ${tradeHistory.length} trades no total`)
+    
+    // Filtrar trades das últimas 24 horas para log
+    const now = new Date()
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const recentTrades = tradeHistory.filter(trade => {
+      const closeTime = new Date(trade.close_timestamp)
+      return closeTime >= twentyFourHoursAgo
+    })
+    
+    console.log(`📊 [CLOSE] Trades fechados nas últimas 24h: ${recentTrades.length}`)
+    recentTrades.forEach((trade, index) => {
+      console.log(`   - Trade ${index + 1}: ${trade.symbol} ${trade.type} | PnL: $${trade.realized_pnl.toFixed(2)} | Motivo: ${trade.close_reason}`)
+    })
+    
     return NextResponse.json({
       open_trades: openTrades,
-      trade_history: tradeHistory.slice(-50), // Last 50 trades
+      trade_history: tradeHistory.slice(-50), // Last 50 trades from shared history
       auto_closed_trades: closeResults,
       portfolio: mockPortfolio,
       current_prices: mockPrices,
@@ -394,7 +413,7 @@ export async function GET() {
   }
 }
 
-// Function to add a new trade (called from execute endpoint)
+// Função para adicionar um novo trade (chamada do endpoint execute)
 export function addOpenTrade(trade: any) {
   const quantity = trade.amount / trade.price
   
@@ -420,4 +439,22 @@ export function addOpenTrade(trade: any) {
   }
   
   openTrades.push(openTrade)
+  
+  // Log para depuração
+  console.log(`📝 [OPEN] Trade adicionado: ${trade.symbol} ${trade.type} | Preço: $${trade.price.toFixed(2)} | Quantidade: ${quantity.toFixed(6)}`)
+}
+
+// Função para forçar o fechamento de um trade para testes
+export function forceCloseTradeForTesting(tradeId: string, reason: string = 'test'): CloseTradeResponse | null {
+  const trade = openTrades.find(t => t.id === tradeId)
+  if (!trade) {
+    console.log(`❌ [TEST] Trade ${tradeId} não encontrado para fechamento`)
+    return null
+  }
+  
+  console.log(`🧪 [TEST] Forçando fechamento do trade ${tradeId} para teste`)
+  const result = closeTrade(trade, reason as any)
+  console.log(`✅ [TEST] Trade fechado para teste: ${result.message}`)
+  
+  return result
 }

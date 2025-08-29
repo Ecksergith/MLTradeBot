@@ -12,7 +12,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { TrendingUp, TrendingDown, DollarSign, BarChart3, Brain, Settings, Activity, Clock } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, BarChart3, Brain, Settings, Activity, Clock, RefreshCw } from 'lucide-react'
+import { 
+  calculate24HourProfit, 
+  tradeHistory as sharedTradeHistory,
+  calculateTotalPortfolioPerformance,
+  updatePreviousPrices,
+  simulatePriceVariation,
+  mockPrices,
+  previousPrices
+} from '@/lib/portfolio'
 
 // Interface para representar uma operação de trading realizada
 interface Trade {
@@ -54,15 +63,19 @@ interface Asset {
   confidence: number
 }
 
-// Interface para representar o portfólio do usuário
+// Interface para representar o portfólio do usuário com informações dinâmicas
 interface Portfolio {
   totalValue: number
   dailyChange: number
+  priceVariationProfit: number // Variação devido a mudanças de preço dos ativos
+  realizedPnL: number // Lucro/prejuízo realizado de trades fechados
+  totalPerformance: number // Performance total (soma dos dois acima)
   assets: {
     symbol: string
     amount: number
     value: number
     change: number
+    priceVariation: number // Variação de preço individual do ativo
   }[]
 }
 
@@ -90,11 +103,23 @@ function generateDefaultProfit(type: 'buy' | 'sell', amount: number): number {
 export default function MLTradingBot() {
   // Estados para gerenciar dados da aplicação
   const [assets, setAssets] = useState<Asset[]>([]) // Lista de ativos disponíveis
-  const [portfolio, setPortfolio] = useState<Portfolio>({ totalValue: 0, dailyChange: 0, assets: [] }) // Dados do portfólio
+  const [portfolio, setPortfolio] = useState<Portfolio>({ 
+    totalValue: 0, 
+    dailyChange: 0, 
+    priceVariationProfit: 0, 
+    realizedPnL: 0, 
+    totalPerformance: 0,
+    assets: [] 
+  }) // Dados do portfólio
   const [previousPortfolioValue, setPreviousPortfolioValue] = useState(0) // Valor anterior do portfólio para cálculo de variação diária
   const [trades, setTrades] = useState<Trade[]>([]) // Histórico de operações realizadas
   const [isBotActive, setIsBotActive] = useState(false) // Status do bot (ativo/inativo)
   const [isAutoTradeEnabled, setIsAutoTradeEnabled] = useState(false) // Status do trading automático
+  
+  // Estados para atualização dinâmica de preços
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<Date>(new Date())
+  const [isUpdatingPrices, setIsUpdatingPrices] = useState(false)
+  const [priceUpdateInterval, setPriceUpdateInterval] = useState<NodeJS.Timeout | null>(null)
   
   // Configurações do trading automático
   const [autoTradeSettings, setAutoTradeSettings] = useState({
@@ -139,6 +164,60 @@ export default function MLTradingBot() {
     })
     // Também manter o console.log para depuração
     console.log(message)
+  }
+
+  // Função para atualizar preços dinamicamente
+  const updatePricesDynamically = async () => {
+    if (isUpdatingPrices) return
+    
+    setIsUpdatingPrices(true)
+    try {
+      addLog('🔄 [PRICES] Iniciando atualização dinâmica de preços...')
+      
+      // Simular variação de preços para demonstração
+      simulatePriceVariation(0.015) // 1.5% de volatilidade
+      
+      // Atualizar preços anteriores antes de buscar novos dados
+      updatePreviousPrices(mockPrices)
+      
+      // Buscar dados de mercado atualizados
+      await fetchMarketData()
+      
+      // Atualizar dados do portfólio com os novos preços
+      await fetchPortfolioData()
+      
+      setLastPriceUpdate(new Date())
+      addLog('✅ [PRICES] Preços atualizados com sucesso')
+      
+    } catch (error) {
+      addLog(`❌ [PRICES] Erro na atualização de preços: ${error}`)
+    } finally {
+      setIsUpdatingPrices(false)
+    }
+  }
+
+  // Função para iniciar atualização automática de preços
+  const startPriceAutoUpdate = (intervalMs: number = 10000) => {
+    if (priceUpdateInterval) {
+      clearInterval(priceUpdateInterval)
+    }
+    
+    addLog(`⚡ [AUTO] Iniciando atualização automática de preços (${intervalMs}ms)`)
+    
+    const interval = setInterval(async () => {
+      await updatePricesDynamically()
+    }, intervalMs)
+    
+    setPriceUpdateInterval(interval)
+  }
+
+  // Função para parar atualização automática de preços
+  const stopPriceAutoUpdate = () => {
+    if (priceUpdateInterval) {
+      clearInterval(priceUpdateInterval)
+      setPriceUpdateInterval(null)
+      addLog('⏹️ [AUTO] Atualização automática de preços parada')
+    }
   }
 
   // Função para buscar dados de mercado da API
@@ -203,52 +282,68 @@ export default function MLTradingBot() {
       const data = await response.json()
       
       if (data.portfolio) {
-        // Calcula o valor total do portfólio somando todos os ativos
+          // Calcula o valor total do portfólio somando todos os ativos
         const totalValue = Object.entries(data.portfolio).reduce((sum: number, [symbol, amount]: [string, any]) => {
           if (symbol === 'USD') return sum + amount
           const price = data.current_prices[symbol] || 0
           return sum + (amount * price)
         }, 0)
         
-        // Calcula a variação diária mais precisa considerando o histórico de trades
-        let dailyChange = 0
-        if (previousPortfolioValue > 0) {
-          dailyChange = totalValue - previousPortfolioValue
-          
-          // Log detalhado para depuração do cálculo diário
-          addLog(`📊 [PORTFOLIO] Cálculo detalhado: totalValue=${totalValue.toFixed(2)}, previousPortfolioValue=${previousPortfolioValue.toFixed(2)}, diff=${dailyChange.toFixed(2)}`)
-        } else {
-          // Se não há valor anterior, calcula baseado nos trades do dia
-          const today = new Date().toDateString()
-          const todayTrades = trades.filter(trade => 
-            new Date(trade.timestamp).toDateString() === today
-          )
-          
-          const tradesProfit = todayTrades.reduce((sum, trade) => sum + trade.profit, 0)
-          dailyChange = tradesProfit
-          
-          addLog(`📊 [PORTFOLIO] Cálculo por trades do dia: ${todayTrades.length} trades, lucro total=${tradesProfit.toFixed(2)}`)
+        // Busca dados de trades fechados para cálculo completo
+        let closedTradesData: any[] = []
+        try {
+          const closeResponse = await fetch('/api/trading/close')
+          const closeData = await closeResponse.json()
+          closedTradesData = closeData.trade_history || []
+        } catch (err) {
+          addLog(`⚠️ [PORTFOLIO] Erro ao buscar trades fechados: ${err}`)
         }
         
-        // Log para depuração do cálculo do portfólio
-        addLog(`📊 [PORTFOLIO] Cálculo do Portfólio: totalValue=${totalValue.toFixed(2)}, previousPortfolioValue=${previousPortfolioValue.toFixed(2)}, dailyChange=${dailyChange.toFixed(2)}`)
+        // Usa a nova função de cálculo dinâmico do portfólio
+        const performance = calculateTotalPortfolioPerformance(
+          data.portfolio,
+          data.current_prices || {},
+          previousPrices,
+          closedTradesData
+        )
         
-        setPortfolio({
-          totalValue,
-          dailyChange,
-          assets: Object.entries(data.portfolio).map(([symbol, amount]: [string, any]) => ({
-            symbol,
-            amount,
-            value: symbol === 'USD' ? amount : amount * (data.current_prices[symbol] || 0),
-            change: 0 // Será calculado com base nas mudanças de preço
-          }))
+        // Log detalhado do cálculo dinâmico
+        addLog(`📊 [PORTFOLIO] CÁLCULO DINÂMICO DO PORTFÓLIO:`)
+        addLog(`   - Valor total: $${performance.totalValue.toFixed(2)}`)
+        addLog(`   - Variação de preços: $${performance.priceVariationProfit.toFixed(2)}`)
+        addLog(`   - PnL realizado: $${performance.realizedPnL.toFixed(2)}`)
+        addLog(`   - Performance total (24h): $${performance.totalPerformance.toFixed(2)}`)
+        
+        // Detalha os ativos e suas variações
+        performance.performanceBreakdown.assets.forEach((asset, index) => {
+          addLog(`   - Ativo ${index + 1}: ${asset.symbol} | Variação: $${asset.priceVariation.toFixed(2)} | Valor: $${asset.currentValue.toFixed(2)}`)
         })
         
-        // Atualiza o valor anterior do portfólio apenas se for significativamente diferente
-        // para evitar que o cálculo sempre resulte em $0.00
-        if (Math.abs(totalValue - previousPortfolioValue) > 0.01) {
-          setPreviousPortfolioValue(totalValue)
-        }
+        // Detalha os trades fechados
+        performance.performanceBreakdown.closedTrades.forEach((trade, index) => {
+          addLog(`   - Trade ${index + 1}: ${trade.symbol} ${trade.type} | PnL: $${trade.realizedPnL.toFixed(2)} | Motivo: ${trade.closeReason}`)
+        })
+        
+        setPortfolio({
+          totalValue: performance.totalValue,
+          dailyChange: performance.totalPerformance, // Usa a performance total como variação diária
+          priceVariationProfit: performance.priceVariationProfit,
+          realizedPnL: performance.realizedPnL,
+          totalPerformance: performance.totalPerformance,
+          assets: Object.entries(data.portfolio).map(([symbol, amount]: [string, any]) => {
+            const currentPrice = data.current_prices[symbol] || 0
+            const previousPrice = previousPrices[symbol] || currentPrice
+            const priceVariation = symbol !== 'USD' ? amount * (currentPrice - previousPrice) : 0
+            
+            return {
+              symbol,
+              amount,
+              value: symbol === 'USD' ? amount : amount * currentPrice,
+              change: 0, // Será calculado com base nas mudanças de preço
+              priceVariation
+            }
+          })
+        })
       }
     } catch (err) {
       addLog(`❌ [PORTFOLIO] Erro ao buscar dados do portfólio: ${err}`)
@@ -392,6 +487,9 @@ export default function MLTradingBot() {
       addLog('✅ [INIT] Inicialização concluída!')
       addLog(`📊 [INIT] Estado final dos ativos: ${assets.length} ativos carregados`)
       
+      // Inicia atualização automática de preços
+      startPriceAutoUpdate(15000) // Atualiza a cada 15 segundos
+      
       // Log detalhado do estado final dos ativos
       if (assets.length > 0) {
         addLog('🔍 [INIT] Detalhamento dos ativos carregados:')
@@ -447,6 +545,24 @@ export default function MLTradingBot() {
       setMlStatus(statuses[Math.floor(Math.random() * statuses.length)])
     }, 5000) // Atualiza a cada 5 segundos
 
+    // Atualização periódica de previsões ML
+    const predictionUpdateInterval = setInterval(async () => {
+      if (isBotActive && assets.length > 0) {
+        addLog('🔄 [ML] Atualizando previsões ML para todos os ativos...')
+        
+        // Atualiza previsões para todos os ativos
+        for (const asset of assets) {
+          try {
+            await getPrediction(asset.symbol)
+          } catch (error) {
+            addLog(`❌ [ML] Erro ao atualizar previsão para ${asset.symbol}: ${error}`)
+          }
+        }
+        
+        addLog('✅ [ML] Previsões atualizadas para todos os ativos')
+      }
+    }, 60000) // Atualiza a cada 60 segundos (1 minuto)
+
     // Lógica de trading automático
     const autoTradeInterval = setInterval(async () => {
       addLog('⏰ [AUTO TRADE] Intervalo de auto trade acionado...')
@@ -482,6 +598,7 @@ export default function MLTradingBot() {
       clearInterval(autoTradeInterval)
       clearInterval(tradeManagementInterval)
       clearInterval(debugInterval)
+      stopPriceAutoUpdate() // Para a atualização automática de preços
     }
   }, [isBotActive, isAutoTradeEnabled, autoTradeSettings.tradeInterval]) // Removido assets.length das dependências
 
@@ -804,20 +921,24 @@ export default function MLTradingBot() {
               <div className="space-y-2">
                 <div className="text-sm text-gray-400">Valor Total</div>
                 <div className="text-2xl font-bold">${portfolio.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div className={`flex items-center space-x-1 ${portfolio.dailyChange > 0 ? 'text-green-400' : portfolio.dailyChange < 0 ? 'text-red-400' : 'text-gray-400'}`}>
-                  {portfolio.dailyChange > 0 ? <TrendingUp className="h-4 w-4" /> : portfolio.dailyChange < 0 ? <TrendingDown className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
-                  <span className="text-sm">${Math.abs(portfolio.dailyChange).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (24h)</span>
+                <div className={`flex items-center space-x-1 ${portfolio.totalPerformance > 0 ? 'text-green-400' : portfolio.totalPerformance < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {portfolio.totalPerformance > 0 ? <TrendingUp className="h-4 w-4" /> : portfolio.totalPerformance < 0 ? <TrendingDown className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
+                  <span className="text-sm">${Math.abs(portfolio.totalPerformance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (24h)</span>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm text-gray-400">PnL Realizado</div>
+                <div className={`text-xl font-bold ${portfolio.realizedPnL > 0 ? 'text-green-400' : portfolio.realizedPnL < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {portfolio.realizedPnL === 0 ? '$0.00' : (portfolio.realizedPnL >= 0 ? '+' : '') + portfolio.realizedPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-sm text-gray-400">Trades fechados</div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-gray-400">Trades Ativos</div>
                 <div className="text-2xl font-bold">{trades.length}</div>
-                <div className="text-sm text-gray-400">Últimas 24 horas</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm text-gray-400">Limite Diário</div>
-                <div className="text-2xl font-bold">{dailyTradeCount}/{autoTradeSettings.maxDailyTrades}</div>
-                <div className="text-sm text-gray-400">Trades automáticos</div>
+                <div className="text-sm text-gray-400">
+                  {dailyTradeCount}/{autoTradeSettings.maxDailyTrades} trades hoje
+                </div>
                 <Progress 
                   value={(dailyTradeCount / autoTradeSettings.maxDailyTrades) * 100} 
                   className="w-full h-2"
@@ -831,9 +952,36 @@ export default function MLTradingBot() {
                     {isBotActive ? 'Ativo' : 'Inativo'}
                   </span>
                 </div>
-                <div className="text-sm text-gray-400">Modelo ML: {botSettings.mlModel.toUpperCase()}</div>
+                <div className="text-xs text-gray-400">
+                  Última atualização: {lastPriceUpdate.toLocaleTimeString()}
+                </div>
               </div>
             </div>
+            
+            {/* Detalhamento da performance por ativo */}
+            {portfolio.assets.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-gray-700">
+                <div className="text-sm text-gray-400 mb-3">Performance por Ativo (24h)</div>
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                  {portfolio.assets.filter(asset => asset.symbol !== 'USD').map((asset) => (
+                    <div key={asset.symbol} className="p-3 bg-gray-700/30 rounded-lg border border-gray-600">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-semibold">{asset.symbol}</div>
+                        <div className={`text-sm ${asset.priceVariation > 0 ? 'text-green-400' : asset.priceVariation < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                          {asset.priceVariation >= 0 ? '+' : ''}${asset.priceVariation.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {asset.amount.toFixed(4)} unidades
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Valor: ${asset.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
