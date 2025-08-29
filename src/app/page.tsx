@@ -130,12 +130,131 @@ export default function MLTradingBot() {
     riskMultiplier: 1.0 // Multiplicador de risco
   })
   
+  // Função para aplicar configurações sugeridas baseadas no nível de risco
+  const applySuggestedRiskSettings = () => {
+    const config = getCurrentRiskConfig()
+    
+    addLog(`⚙️ [RISK] Aplicando configurações sugeridas para nível ${botSettings.riskLevel}`)
+    
+    setBotSettings(prev => ({
+      ...prev,
+      stopLoss: config.suggestedStopLoss,
+      takeProfit: config.suggestedTakeProfit
+    }))
+    
+    addLog(`📊 [RISK] Configurações aplicadas:`)
+    addLog(`   - Stop Loss: ${config.suggestedStopLoss}%`)
+    addLog(`   - Take Profit: ${config.suggestedTakeProfit}%`)
+    
+    setMlStatus('Configurações de risco aplicadas com sucesso!')
+    setTimeout(() => {
+      setMlStatus('Bot pronto para operar')
+    }, 2000)
+  }
+
+  // Função mais eficaz para gerenciar o Nível de Risco
+  const handleRiskLevelChange = (newRiskLevel: 'low' | 'medium' | 'high') => {
+    addLog(`⚙️ [RISK] Alterando nível de risco: ${botSettings.riskLevel} → ${newRiskLevel}`)
+    
+    // Configurações baseadas no nível de risco
+    const riskConfigs = {
+      low: {
+        multiplier: 0.5,
+        suggestedStopLoss: 3.0,
+        suggestedTakeProfit: 6.0,
+        maxTradePercentage: 5, // 5% do portfólio
+        description: 'Risco Baixo - Operações conservadoras com menor ganho potencial',
+        color: 'text-green-400'
+      },
+      medium: {
+        multiplier: 1.0,
+        suggestedStopLoss: 5.0,
+        suggestedTakeProfit: 10.0,
+        maxTradePercentage: 10, // 10% do portfólio
+        description: 'Risco Médio - Equilíbrio entre risco e recompensa',
+        color: 'text-yellow-400'
+      },
+      high: {
+        multiplier: 1.5,
+        suggestedStopLoss: 8.0,
+        suggestedTakeProfit: 15.0,
+        maxTradePercentage: 20, // 20% do portfólio
+        description: 'Risco Alto - Operações agressivas com maior potencial de ganho/perda',
+        color: 'text-red-400'
+      }
+    }
+
+    const config = riskConfigs[newRiskLevel]
+    
+    // Atualiza as configurações do bot com base no novo nível de risco
+    setBotSettings(prev => ({
+      ...prev,
+      riskLevel: newRiskLevel,
+      // Opcionalmente ajusta automaticamente Stop Loss e Take Profit sugeridos
+      // stopLoss: config.suggestedStopLoss,
+      // takeProfit: config.suggestedTakeProfit
+    }))
+
+    // Adiciona log detalhado sobre a mudança
+    addLog(`📊 [RISK] Nova configuração aplicada:`)
+    addLog(`   - Multiplicador: ${config.multiplier}x`)
+    addLog(`   - Stop Loss sugerido: ${config.suggestedStopLoss}%`)
+    addLog(`   - Take Profit sugerido: ${config.suggestedTakeProfit}%`)
+    addLog(`   - Máximo por operação: ${config.maxTradePercentage}% do portfólio`)
+    addLog(`   - Descrição: ${config.description}`)
+
+    // Mostra notificação visual (pode ser implementada com toast se desejar)
+    setMlStatus(`Nível de risco alterado para: ${newRiskLevel === 'low' ? 'Baixo' : newRiskLevel === 'medium' ? 'Médio' : 'Alto'}`)
+    
+    // Limpa a mensagem após 3 segundos
+    setTimeout(() => {
+      setMlStatus('Bot pronto para operar')
+    }, 3000)
+  }
+
+  // Função para obter as informações do nível de risco atual
+  const getCurrentRiskConfig = () => {
+    const riskConfigs = {
+      low: {
+        multiplier: 0.5,
+        suggestedStopLoss: 3.0,
+        suggestedTakeProfit: 6.0,
+        maxTradePercentage: 5,
+        description: 'Risco Baixo - Operações conservadoras com menor ganho potencial',
+        color: 'text-green-400',
+        bgColor: 'bg-green-900/20',
+        borderColor: 'border-green-700'
+      },
+      medium: {
+        multiplier: 1.0,
+        suggestedStopLoss: 5.0,
+        suggestedTakeProfit: 10.0,
+        maxTradePercentage: 10,
+        description: 'Risco Médio - Equilíbrio entre risco e recompensa',
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-900/20',
+        borderColor: 'border-yellow-700'
+      },
+      high: {
+        multiplier: 1.5,
+        suggestedStopLoss: 8.0,
+        suggestedTakeProfit: 15.0,
+        maxTradePercentage: 20,
+        description: 'Risco Alto - Operações agressivas com maior potencial de ganho/perda',
+        color: 'text-red-400',
+        bgColor: 'bg-red-900/20',
+        borderColor: 'border-red-700'
+      }
+    }
+    return riskConfigs[botSettings.riskLevel]
+  }
+
   // Configurações gerais do bot
   const [botSettings, setBotSettings] = useState({
     riskLevel: 'medium', // Nível de risco (low, medium, high)
-    maxTradeSize: 1000, // Tamanho máximo da operação
-    stopLoss: 5, // Stop loss em porcentagem
-    takeProfit: 10, // Take profit em porcentagem
+    maxTradeSize: 1, // Tamanho máximo da operação
+    stopLoss: 5.0, // Stop loss em porcentagem
+    takeProfit: 10.0, // Take profit em porcentagem
     mlModel: 'lstm' // Modelo de machine learning
   })
   
@@ -1081,26 +1200,75 @@ export default function MLTradingBot() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Card compacto de informações do nível de risco atual */}
+                  <div className={`${getCurrentRiskConfig().bgColor} ${getCurrentRiskConfig().borderColor} border rounded-lg p-3`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className={`w-3 h-3 rounded-full ${
+                          botSettings.riskLevel === 'low' ? 'bg-green-400' : 
+                          botSettings.riskLevel === 'medium' ? 'bg-yellow-400' : 'bg-red-400'
+                        }`}></span>
+                        <div>
+                          <span className="text-sm font-medium">Risco: </span>
+                          <span className={`font-bold ${getCurrentRiskConfig().color}`}>
+                            {botSettings.riskLevel === 'low' ? 'Baixo' : botSettings.riskLevel === 'medium' ? 'Médio' : 'Alto'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {getCurrentRiskConfig().multiplier}x • {getCurrentRiskConfig().maxTradePercentage}%
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label>Nível de Risco</Label>
-                    <Select value={botSettings.riskLevel} onValueChange={(value) => setBotSettings(prev => ({ ...prev, riskLevel: value }))}>
+                    <Label>Alterar Nível de Risco</Label>
+                    <Select value={botSettings.riskLevel} onValueChange={handleRiskLevelChange}>
                       <SelectTrigger className="bg-gray-700 border-gray-600">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-gray-700 border-gray-600">
-                        <SelectItem value="low">Baixo</SelectItem>
-                        <SelectItem value="medium">Médio</SelectItem>
-                        <SelectItem value="high">Alto</SelectItem>
+                        <SelectItem value="low">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                            <span>Baixo - Conservador</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="medium">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+                            <span>Médio - Equilibrado</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="high">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                            <span>Alto - Agressivo</span>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
+                    
+                    {/* Botão compacto para aplicar configurações sugeridas */}
+                    <Button
+                      onClick={applySuggestedRiskSettings}
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-gray-700 border-gray-600 hover:bg-gray-600 text-xs h-8"
+                    >
+                      ⚡ Aplicar Sugeridos
+                      <span className="ml-1 text-gray-400 text-xs">
+                        (SL: {getCurrentRiskConfig().suggestedStopLoss}% / TP: {getCurrentRiskConfig().suggestedTakeProfit}%)
+                      </span>
+                    </Button>
                   </div>
                   <div className="space-y-2">
                     <Label>Tamanho Máximo do Trade: ${botSettings.maxTradeSize}</Label>
                     <Input
                       type="range"
-                      min="100"
+                      min="1"
                       max="10000"
-                      step="100"
+                      step="1"
                       value={botSettings.maxTradeSize}
                       onChange={(e) => setBotSettings(prev => ({ ...prev, maxTradeSize: parseInt(e.target.value) }))}
                       className="bg-gray-700"
@@ -1111,10 +1279,11 @@ export default function MLTradingBot() {
                       <Label>Stop Loss: {botSettings.stopLoss}%</Label>
                       <Input
                         type="range"
-                        min="1"
-                        max="20"
+                        min="0.1"
+                        max="100"
+                        step="0.1"
                         value={botSettings.stopLoss}
-                        onChange={(e) => setBotSettings(prev => ({ ...prev, stopLoss: parseInt(e.target.value) }))}
+                        onChange={(e) => setBotSettings(prev => ({ ...prev, stopLoss: parseFloat(e.target.value) }))}
                         className="bg-gray-700"
                       />
                     </div>
@@ -1122,10 +1291,11 @@ export default function MLTradingBot() {
                       <Label>Take Profit: {botSettings.takeProfit}%</Label>
                       <Input
                         type="range"
-                        min="1"
-                        max="50"
+                        min="0.1"
+                        max="100"
+                        step="0.1"
                         value={botSettings.takeProfit}
-                        onChange={(e) => setBotSettings(prev => ({ ...prev, takeProfit: parseInt(e.target.value) }))}
+                        onChange={(e) => setBotSettings(prev => ({ ...prev, takeProfit: parseFloat(e.target.value) }))}
                         className="bg-gray-700"
                       />
                     </div>
