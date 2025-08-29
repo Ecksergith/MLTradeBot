@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
+import { mockPrices, mockPortfolio, calculateFees, closeTradeOnPortfolio } from '@/lib/portfolio'
 
 interface OpenTrade {
   id: string
@@ -37,29 +38,6 @@ interface CloseTradeResponse {
 // Mock open trades storage (in a real app, this would be in a database)
 let openTrades: OpenTrade[] = []
 let tradeHistory: any[] = []
-
-// Mock current prices
-const mockPrices: Record<string, number> = {
-  'BTC': 45234.56,
-  'ETH': 2345.67,
-  'SOL': 98.76,
-  'ADA': 0.45,
-  'DOT': 7.89
-}
-
-// Mock portfolio balances
-const mockPortfolio: Record<string, number> = {
-  'USD': 10000,
-  'BTC': 0.5,
-  'ETH': 3.2,
-  'SOL': 10,
-  'ADA': 1000,
-  'DOT': 50
-}
-
-function calculateFees(amount: number): number {
-  return amount * 0.001 // 0.1% fee
-}
 
 function updateTradePrices(): void {
   // Update current prices for all open trades
@@ -250,19 +228,18 @@ function checkTakeProfitStopLoss(trade: OpenTrade): {
 
 function closeTrade(trade: OpenTrade, reason: 'take_profit' | 'stop_loss' | 'manual' | 'ml_signal', closePrice?: number): CloseTradeResponse {
   const price = closePrice || trade.current_price
-  const fees = calculateFees(trade.amount)
-  const realizedPnL = trade.type === 'buy' 
-    ? (price - trade.entry_price) * trade.quantity - fees
-    : (trade.entry_price - price) * trade.quantity - fees
   
-  // Update portfolio
-  if (trade.type === 'buy') {
-    mockPortfolio[trade.symbol] -= trade.quantity
-    mockPortfolio['USD'] += (price * trade.quantity) - fees
-  } else {
-    mockPortfolio['USD'] -= (price * trade.quantity) + fees
-    mockPortfolio[trade.symbol] += trade.quantity
-  }
+  // Update portfolio using shared function
+  const { updatedPortfolio, fees, realizedPnL } = closeTradeOnPortfolio({
+    symbol: trade.symbol,
+    type: trade.type,
+    quantity: trade.quantity,
+    price: trade.entry_price,
+    closePrice: price
+  }, mockPortfolio)
+  
+  // Update the shared portfolio (in a real app, this would update the database)
+  Object.assign(mockPortfolio, updatedPortfolio)
   
   // Remove from open trades
   openTrades = openTrades.filter(t => t.id !== trade.id)

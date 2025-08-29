@@ -153,6 +153,7 @@ async function generateMLPrediction(data: AssetData): Promise<{
   expected_move: number
 }> {
   try {
+    console.log(`🤖 [ML] Iniciando geração de previsão para ${data.symbol}...`)
     const zai = await ZAI.create()
     
     const latestPrice = data.prices[data.prices.length - 1]
@@ -160,6 +161,14 @@ async function generateMLPrediction(data: AssetData): Promise<{
     const latestMACD = data.technical_indicators.macd[data.technical_indicators.macd.length - 1]
     const priceVsSMA20 = latestPrice - data.technical_indicators.sma_20[data.technical_indicators.sma_20.length - 1]
     const priceVsSMA50 = latestPrice - data.technical_indicators.sma_50[data.technical_indicators.sma_50.length - 1]
+    
+    console.log(`📊 [ML] Indicadores técnicos para ${data.symbol}:`, {
+      latestPrice,
+      latestRSI,
+      latestMACD,
+      priceVsSMA20,
+      priceVsSMA50
+    })
     
     const prompt = `
     Analyze the following trading data for ${data.symbol} and provide a trading recommendation:
@@ -185,6 +194,7 @@ async function generateMLPrediction(data: AssetData): Promise<{
     }
     `
     
+    console.log(`📝 [ML] Enviando prompt para ZAI...`)
     const completion = await zai.chat.completions.create({
       messages: [
         {
@@ -200,10 +210,12 @@ async function generateMLPrediction(data: AssetData): Promise<{
     })
     
     const response = completion.choices[0]?.message?.content
+    console.log(`📥 [ML] Resposta recebida do ZAI:`, response)
     
     if (response) {
       try {
         const parsed = JSON.parse(response)
+        console.log(`✅ [ML] Previsão parseada com sucesso:`, parsed)
         return {
           prediction: parsed.prediction,
           confidence: parsed.confidence,
@@ -211,15 +223,19 @@ async function generateMLPrediction(data: AssetData): Promise<{
           expected_move: parsed.expected_move
         }
       } catch (parseError) {
+        console.error(`❌ [ML] Erro ao parsear JSON da resposta:`, parseError)
+        console.log(`🔄 [ML] Usando fallback para previsão baseada em regras...`)
         // Fallback to rule-based prediction if JSON parsing fails
         return generateRuleBasedPrediction(data)
       }
     }
     
+    console.log(`❌ [ML] Nenhuma resposta recebida do ZAI, usando fallback...`)
     return generateRuleBasedPrediction(data)
     
   } catch (error) {
-    console.error('ML prediction error:', error)
+    console.error('❌ [ML] ML prediction error:', error)
+    console.log(`🔄 [ML] Usando fallback para previsão baseada em regras devido a erro...`)
     return generateRuleBasedPrediction(data)
   }
 }
@@ -230,11 +246,21 @@ function generateRuleBasedPrediction(data: AssetData): {
   reasoning: string
   expected_move: number
 } {
+  console.log(`📊 [RULE] Gerando previsão baseada em regras para ${data.symbol}...`)
+  
   const latestPrice = data.prices[data.prices.length - 1]
   const latestRSI = data.technical_indicators.rsi[data.technical_indicators.rsi.length - 1]
   const latestMACD = data.technical_indicators.macd[data.technical_indicators.macd.length - 1]
   const priceVsSMA20 = latestPrice - data.technical_indicators.sma_20[data.technical_indicators.sma_20.length - 1]
   const priceVsSMA50 = latestPrice - data.technical_indicators.sma_50[data.technical_indicators.sma_50.length - 1]
+  
+  console.log(`📈 [RULE] Indicadores para regras:`, {
+    latestPrice,
+    latestRSI,
+    latestMACD,
+    priceVsSMA20,
+    priceVsSMA50
+  })
   
   let prediction: 'buy' | 'sell' | 'hold' = 'hold'
   let confidence = 50
@@ -247,11 +273,13 @@ function generateRuleBasedPrediction(data: AssetData): {
     confidence = Math.min(confidence + 20, 90)
     reasoning = 'Oversold conditions detected (RSI < 30)'
     expected_move = 2 + Math.random() * 3
+    console.log(`📉 [RULE] Sinal de compra: RSI oversold (${latestRSI})`)
   } else if (latestRSI > 70) {
     prediction = 'sell'
     confidence = Math.min(confidence + 20, 90)
     reasoning = 'Overbought conditions detected (RSI > 70)'
     expected_move = -(2 + Math.random() * 3)
+    console.log(`📈 [RULE] Sinal de venda: RSI overbought (${latestRSI})`)
   }
   
   // MACD-based signals
@@ -259,21 +287,25 @@ function generateRuleBasedPrediction(data: AssetData): {
     if (prediction === 'buy') {
       confidence = Math.min(confidence + 15, 95)
       reasoning += ' with positive MACD confirmation'
+      console.log(`📊 [RULE] MACD positivo confirma compra`)
     } else if (prediction === 'hold') {
       prediction = 'buy'
       confidence = 65
       reasoning = 'Positive MACD signal'
       expected_move = 1 + Math.random() * 2
+      console.log(`📊 [RULE] MACD positivo gera sinal de compra`)
     }
   } else if (latestMACD < 0) {
     if (prediction === 'sell') {
       confidence = Math.min(confidence + 15, 95)
       reasoning += ' with negative MACD confirmation'
+      console.log(`📊 [RULE] MACD negativo confirma venda`)
     } else if (prediction === 'hold') {
       prediction = 'sell'
       confidence = 65
       reasoning = 'Negative MACD signal'
       expected_move = -(1 + Math.random() * 2)
+      console.log(`📊 [RULE] MACD negativo gera sinal de venda`)
     }
   }
   
@@ -282,37 +314,50 @@ function generateRuleBasedPrediction(data: AssetData): {
     if (prediction === 'buy') {
       confidence = Math.min(confidence + 10, 98)
       reasoning += ' and price above moving averages'
+      console.log(`📊 [RULE] Preço acima das médias confirma compra`)
     }
   } else if (priceVsSMA20 < 0 && priceVsSMA50 < 0) {
     if (prediction === 'sell') {
       confidence = Math.min(confidence + 10, 98)
       reasoning += ' and price below moving averages'
+      console.log(`📊 [RULE] Preço abaixo das médias confirma venda`)
     }
   }
   
-  return {
+  const result = {
     prediction,
     confidence,
     reasoning,
     expected_move
   }
+  
+  console.log(`✅ [RULE] Previsão baseada em regras gerada:`, result)
+  
+  return result
 }
 
 export async function POST(request: NextRequest) {
   try {
     const { symbol } = await request.json()
     
+    console.log(`🔮 [PREDICT] Recebida requisição para símbolo: ${symbol}`)
+    
     if (!symbol) {
+      console.error('❌ [PREDICT] Símbolo não fornecido')
       return NextResponse.json({ error: 'Symbol is required' }, { status: 400 })
     }
     
     // Generate mock historical data
+    console.log(`📊 [PREDICT] Gerando dados históricos para ${symbol}...`)
     const historicalData = generateMockHistoricalData(symbol)
     
     // Generate ML prediction
+    console.log(`🤖 [PREDICT] Gerando previsão ML para ${symbol}...`)
     const prediction = await generateMLPrediction(historicalData)
     
-    return NextResponse.json({
+    console.log(`✅ [PREDICT] Previsão gerada para ${symbol}:`, prediction)
+    
+    const response = {
       symbol,
       prediction: prediction.prediction,
       confidence: prediction.confidence,
@@ -326,10 +371,14 @@ export async function POST(request: NextRequest) {
         sma_50: historicalData.technical_indicators.sma_50[historicalData.technical_indicators.sma_50.length - 1]
       },
       timestamp: new Date().toISOString()
-    })
+    }
+    
+    console.log(`📤 [PREDICT] Enviando resposta:`, response)
+    
+    return NextResponse.json(response)
     
   } catch (error) {
-    console.error('Prediction API error:', error)
+    console.error('❌ [PREDICT] Prediction API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

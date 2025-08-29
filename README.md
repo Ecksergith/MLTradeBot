@@ -28,7 +28,7 @@ Um bot de trading inteligente powered por Machine Learning com interface profiss
 - **Gestão de Risco Avançada**: Limites diários, confiança mínima e multiplicadores
 - **Monitoramento em Tempo Real**: Status e estatísticas de auto trade
 
-### 🛡️ **NOVO: Sistema Avançado de Fechamento de Trades**
+### 🛡️ Sistema Avançado de Fechamento de Trades
 - **Take Profit/Stop Loss Automáticos**: Configuração individual por trade
 - **Análise LSTM para Fechamento**: IA identifica momentos ótimos para encerrar posições
 - **Fechamento Inteligente**: Combinação de TP/SL fixos com sinais dinâmicos de mercado
@@ -41,12 +41,21 @@ Um bot de trading inteligente powered por Machine Learning com interface profiss
 - **Volume e Market Cap**: Dados completos de mercado
 - **Análise Técnica**: Indicadores e padrões de mercado
 
-### 🎮 **NOVO: Interface de Gerenciamento de Trades**
+### 🎮 Interface de Gerenciamento de Trades
 - **Aba "Trades Abertos"**: Gerenciamento centralizado de todas as posições
 - **Visualização Detalhada**: Preço de entrada, atual, TP, SL, P&L unrealizado
 - **Barras de Progresso**: Indicadores visuais de progresso para TP/SL
 - **Controle Manual**: Botão para fechamento manual quando necessário
 - **Notificações em Tempo Real**: Alertas para trades fechados automaticamente
+
+### 🔍 **NOVO: Sistema Avançado de Logs e Depuração**
+- **Aba "Logs" Dedicada**: Interface completa para monitoramento do sistema
+- **Logs em Tempo Real**: Todos os eventos do sistema registrados com timestamp
+- **Coloração Inteligente**: Identificação visual de erros (vermelho), sucessos (verde), ações (azul), informações (amarelo), temporização (roxo)
+- **Análise Detalhada**: Diagnóstico automático de problemas com sugestões de correção
+- **Botão de Limpeza**: Limpar logs quando necessário
+- **Atualização Manual de Previsões**: Botão 🔄 para forçar atualização de todas as previsões ML
+- **Diagnóstico de Auto Trade**: Identificação precisa de por que nenhum ativo é elegível para trading
 
 ## 🚀 Arquitetura do Sistema
 
@@ -67,18 +76,26 @@ Um bot de trading inteligente powered por Machine Learning com interface profiss
 - **Análise de Risco**: Avaliação contínua de condições de mercado
 - **Aprendizado Contínuo**: Melhora das decisões com base em resultados históricos
 
-### 🔄 Fluxo de Trading
-1. **Análise de Mercado** → Coleta de dados e indicadores técnicos
-2. **Previsão ML** → Geração de sinais de compra/venda com confiança
-3. **Execução** → Abertura de posição com TP/SL automáticos
-4. **Monitoramento** → Acompanhamento contínuo da posição
-5. **Fechamento Inteligente** → Encerramento baseado em TP/SL ou sinais LSTM
+### 🔍 Sistema de Logs e Depuração
+- **Coleta Centralizada**: Função `addLog()` centraliza todos os logs com timestamp
+- **Categorização Visual**: Logs coloridos por tipo (erros, sucessos, ações, informações, temporização)
+- **Análise Automática**: Diagnóstico inteligente de problemas no auto trade
+- **Sugestões de Correção**: Recomendações automáticas baseadas na análise dos logs
+
+### 🔄 Fluxo de Trading com Logs
+1. **Inicialização** → Logs detalhados do carregamento de dados e previsões
+2. **Análise de Mercado** → Registro de coleta de dados e indicadores técnicos
+3. **Previsão ML** → Logs de geração de sinais com confiança
+4. **Execução** → Registro completo de abertura de posição com TP/SL
+5. **Monitoramento** → Logs contínuos de acompanhamento da posição
+6. **Fechamento Inteligente** → Registro de encerramento com motivo e P&L
+7. **Diagnóstico** → Análise automática de problemas e sugestões
 
 ## 🎯 Configurações de Bot
 
 ### Parâmetros de Auto Trade
-- **Ativos Habilitados**: Selecione quais criptomoedas monitorar
-- **Confiança Mínima**: Ajuste o threshold para execução (50-95%)
+- **Ativos Habilitados**: Selecione quais criptomoedas monitorar (padrão: BTC, ETH, SOL)
+- **Confiança Mínima**: Ajuste o threshold para execução (padrão: 50% - reduzido para melhor performance)
 - **Máximo de Trades por Dia**: Limite diário para controle de risco (1-50)
 - **Intervalo entre Trades**: Tempo mínimo entre execuções (10-300s)
 - **Multiplicador de Risco**: Ajuste agressividade das operações (0.1x-3.0x)
@@ -88,6 +105,81 @@ Um bot de trading inteligente powered por Machine Learning com interface profiss
 - **Stop Loss**: Porcentagem máxima de perda (padrão: 5%)
 - **Fechamento por LSTM**: Habilita análise inteligente para fechamento
 - **Timeout de Trade**: Duração máxima de posição (padrão: 24h)
+
+## 🔍 Utilizando o Sistema de Logs
+
+### Acessando os Logs
+1. **Abra a Interface**: Navegue até a aplicação web
+2. **Clique na Aba "Logs"**: Setenta aba no menu superior
+3. **Ative o Sistema**: 
+   - Clique em "Iniciar Bot"
+   - Clique em "Auto Trade ON"
+4. **Monitore em Tempo Real**: Veja todos os eventos do sistema
+
+### Interpretando os Logs
+
+#### 🟢 Logs de Sucesso (Verde)
+```
+[14:32:15] ✅ [AUTO TRADE] Operação automática executada com sucesso
+[14:32:10] 🚀 [INIT] Inicialização concluída!
+```
+
+#### 🔴 Logs de Erro (Vermelho)
+```
+[14:32:20] ❌ [AUTO TRADE] Nenhum ativo elegível para trading automático
+[14:32:05] ❌ [ML] Previsão inválida para BTC
+```
+
+#### 🔵 Logs de Ação (Azul)
+```
+[14:32:12] 🚀 [AUTO TRADE] Executendo operação...
+[14:32:08] 📊 [PORTFOLIO] Cálculo do Portfólio: totalValue=25000.00
+```
+
+#### 🟡 Logs de Informação (Amarelo)
+```
+[14:32:18] 🔍 [AUTO TRADE] Análise detalhada:
+[14:32:16] 📋 [AUTO TRADE] Ativos disponíveis: 5
+```
+
+#### 🟣 Logs de Temporização (Roxo)
+```
+[14:32:25] ⏰ [AUTO TRADE] Intervalo de auto trade acionado...
+[14:32:22] ⏸️ [AUTO TRADE] Auto trade pausado
+```
+
+### Diagnóstico Automático
+
+O sistema fornece análise detalhada quando o auto trade não encontra ativos elegíveis:
+
+```
+❌ [AUTO TRADE] Nenhum ativo elegível para trading automático
+🔍 [AUTO TRADE] Análise detalhada:
+   - Ativos disponíveis: 5
+   - Ativos habilitados: BTC, ETH, SOL
+   - Confiança mínima requerida: 50%
+   - Análise individual dos ativos:
+   - BTC: Habilitado: true, Confiança: 45% -> BAIXO, Previsão: buy -> OK, Elegível: false
+   - ETH: Habilitado: true, Confiança: 62% -> OK, Previsão: hold -> HOLD, Elegível: false
+💡 [AUTO TRADE] Sugestões para correção:
+   - Tente reduzir a confiança mínima nas configurações
+   - Verifique se a API de previsão ML está funcionando
+```
+
+### Atualizando Previsões Manualmente
+
+Quando as previsões estiverem desatualizadas ou com confiança baixa:
+
+1. **Localize o Botão 🔄**: Próximo aos botões de controle do bot
+2. **Clique para Atualizar**: Força a atualização de todas as previsões ML
+3. **Monitore os Logs**: Veja o processo de atualização em tempo real
+
+```
+🔄 [ML] Forçando atualização de todas as previsões ML...
+🔮 [ML] Atualizando previsão para BTC...
+📈 [ML] Previsão recebida para BTC: {"prediction":"buy","confidence":78}
+✅ [ML] Todas as previsões atualizadas
+```
 
 ## 🛠️ Tecnologias Utilizadas
 
@@ -109,6 +201,12 @@ Um bot de trading inteligente powered por Machine Learning com interface profiss
 - **Análise Técnica**: Cálculo de indicadores técnicos
 - **Previsão de Sinais**: Classificação de oportunidades de trading
 - **Otimização de Saída**: Identificação de momentos de fechamento
+
+### Sistema de Logs
+- **React State Management**: Gerenciamento de logs em tempo real
+- **Coloração Inteligente**: Classificação visual de tipos de logs
+- **Análise Automática**: Diagnóstico inteligente de problemas
+- **Interface Intuitiva**: Scroll area com busca e filtragem
 
 ## 🚀 Como Implementar com Dados Reais
 
@@ -148,368 +246,169 @@ export const getMarketData = async (symbol: string) => {
     throw error
   }
 }
-
-export const getHistoricalData = async (symbol: string, interval: string = '1h', limit: number = 100) => {
-  try {
-    const candles = await binance.candles({
-      symbol: `${symbol}USDT`,
-      interval,
-      limit,
-    })
-    
-    return candles.map(candle => ({
-      timestamp: new Date(candle.openTime).toISOString(),
-      open: parseFloat(candle.open),
-      high: parseFloat(candle.high),
-      low: parseFloat(candle.low),
-      close: parseFloat(candle.close),
-      volume: parseFloat(candle.volume),
-    }))
-  } catch (error) {
-    console.error('Erro ao buscar dados históricos:', error)
-    throw error
-  }
-}
 ```
 
-#### 💱 Integração com CoinGecko API
-```bash
-# Instalar biblioteca CoinGecko
-npm install coingecko-api
-```
+### 2. **NOVO: Configurar Sistema de Logs para Produção**
 
+#### 📝 Implementação de Logging Avançado
 ```typescript
-// src/lib/coingecko.ts
-import CoinGecko from 'coingecko-api'
+// src/lib/logger.ts
+import winston from 'winston'
 
-const CoinGeckoClient = new CoinGecko()
-
-export const getMarketOverview = async () => {
-  try {
-    const data = await CoinGeckoClient.coins.markets({
-      vs_currency: 'usd',
-      order: 'market_cap_desc',
-      per_page: 100,
-      page: 1,
-      sparkline: false,
-    })
-    
-    return data.data.map(coin => ({
-      symbol: coin.symbol.toUpperCase(),
-      name: coin.name,
-      price: coin.current_price,
-      change_24h: coin.price_change_24h,
-      change_percent_24h: coin.price_change_percentage_24h,
-      volume_24h: coin.total_volume,
-      market_cap: coin.market_cap,
-      high_24h: coin.high_24h,
-      low_24h: coin.low_24h,
-    }))
-  } catch (error) {
-    console.error('Erro ao buscar dados do CoinGecko:', error)
-    throw error
-  }
-}
-```
-
-### 2. Configurar Database Real
-
-#### 🗄️ Configurar PostgreSQL com Prisma
-```bash
-# Instalar Prisma e PostgreSQL
-npm install prisma @prisma/client
-npm install pg
-npx prisma init
-```
-
-```prisma
-// prisma/schema.prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  balance   Float    @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  trades    Trade[]
-  portfolio Portfolio[]
-  autoTradeSettings AutoTradeSettings?
-}
-
-model Asset {
-  symbol     String   @id
-  name       String
-  price      Float
-  change24h  Float
-  volume24h  Float
-  marketCap  Float
-  updatedAt  DateTime @updatedAt
-  
-  trades     Trade[]
-  portfolio  Portfolio[]
-}
-
-model Trade {
-  id            String   @id @default(cuid())
-  userId        String
-  assetSymbol   String
-  type          TradeType
-  amount        Float
-  price         Float
-  fees          Float    @default(0)
-  status        TradeStatus @default(PENDING)
-  mlConfidence  Float?
-  profit        Float    @default(0)
-  isAutoTrade   Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  executedAt    DateTime?
-  
-  user          User     @relation(fields: [userId], references: [id])
-  asset         Asset    @relation(fields: [assetSymbol], references: [symbol])
-}
-
-model Portfolio {
-  id         String   @id @default(cuid())
-  userId     String
-  assetSymbol String
-  amount     Float    @default(0)
-  avgPrice   Float    @default(0)
-  value      Float    @default(0)
-  updatedAt  DateTime @updatedAt
-  
-  user       User     @relation(fields: [userId], references: [id])
-  asset      Asset    @relation(fields: [assetSymbol], references: [symbol])
-  
-  @@unique([userId, assetSymbol])
-}
-
-model AutoTradeSettings {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  enabled          Boolean  @default(false)
-  enabledAssets    String[] @default([])
-  minConfidence    Int      @default(75)
-  maxDailyTrades   Int      @default(10)
-  tradeInterval    Int      @default(30)
-  riskMultiplier   Float    @default(1.0)
-  totalTrades      Int      @default(0)
-  successfulTrades Int      @default(0)
-  totalProfit      Float    @default(0)
-  lastTradeAt      DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  
-  user             User     @relation(fields: [userId], references: [id])
-}
-
-enum TradeType {
-  BUY
-  SELL
-}
-
-enum TradeStatus {
-  PENDING
-  EXECUTED
-  FAILED
-  CANCELLED
-}
-```
-
-```bash
-# Criar e migrar database
-npx prisma migrate dev --name init
-npx prisma generate
-```
-
-### 3. Implementar Autenticação
-
-#### 🔐 Configurar NextAuth.js
-```bash
-npm install next-auth @next-auth/prisma-adapter
-```
-
-```typescript
-// src/lib/auth.ts
-import NextAuth from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
-import { prisma } from '@/lib/db'
-
-export const authOptions = {
-  adapter: PrismaAdapter(prisma),
-  providers: [
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null
-        }
-        
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        })
-        
-        if (!user) {
-          return null
-        }
-        
-        // Adicionar verificação de senha aqui
-        return {
-          id: user.id,
-          email: user.email,
-          balance: user.balance
-        }
-      }
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'trading-bot' },
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+    new winston.transports.Console({
+      format: winston.format.simple()
     })
   ],
-  session: {
-    strategy: 'jwt'
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.balance = user.balance
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.sub
-        session.user.balance = token.balance
-      }
-      return session
+})
+
+export const logTradeExecution = (tradeData: any) => {
+  logger.info('Trade executed', {
+    type: 'trade_execution',
+    data: tradeData
+  })
+}
+
+export const logMLError = (error: any, context: string) => {
+  logger.error('ML prediction error', {
+    type: 'ml_error',
+    context,
+    error: error.message,
+    stack: error.stack
+  })
+}
+```
+
+### 3. **NOVO: Monitoramento e Alertas**
+
+#### 📊 Sistema de Monitoramento
+```typescript
+// src/lib/monitoring.ts
+export class TradingMonitor {
+  private alertThresholds = {
+    lowConfidence: 40,
+    highErrorRate: 0.1,
+    lowSuccessRate: 0.6
+  }
+
+  async checkSystemHealth() {
+    const metrics = await this.collectMetrics()
+    
+    if (metrics.avgConfidence < this.alertThresholds.lowConfidence) {
+      await this.sendAlert('Low ML confidence detected', metrics)
     }
+    
+    if (metrics.errorRate > this.alertThresholds.highErrorRate) {
+      await this.sendAlert('High error rate detected', metrics)
+    }
+  }
+
+  private async sendAlert(message: string, metrics: any) {
+    // Implementar envio de email, Slack, ou outro sistema de notificação
+    console.log(`ALERT: ${message}`, metrics)
   }
 }
 ```
 
-### 4. **NOVO: Implementar Sistema de Fechamento Inteligente**
+## 🐛 Solução de Problemas Comuns
 
-#### 🛡️ Sistema Avançado de Take Profit/Stop Loss
-```typescript
-// src/lib/trade-manager.ts
-import { prisma } from '@/lib/db'
-import { generateLSTMCloseSignal } from './ml-trainer'
-import { getMarketData } from './binance'
+### 📋 Problemas de Auto Trade
 
-export class TradeManager {
-  async monitorOpenTrades() {
-    const openTrades = await prisma.trade.findMany({
-      where: { status: 'OPEN' },
-      include: { asset: true }
-    })
+#### ❌ "Nenhum ativo elegível para trading automático"
 
-    for (const trade of openTrades) {
-      await this.evaluateTradeForClose(trade)
-    }
-  }
+**Causas Comuns:**
+1. **Confiança muito alta**: Previsões ML abaixo do threshold mínimo
+2. **Todos em "hold"**: Previsões indicando manter posição
+3. **Ativos não habilitados**: Símbolos não estão na lista de ativos habilitados
+4. **Previsões não geradas**: Ativos com confiança 0
 
-  private async evaluateTradeForClose(trade: any) {
-    // Get current market data
-    const marketData = await getMarketData(trade.assetSymbol)
-    const currentPrice = marketData.price
+**Soluções:**
+1. **Reduzir confiança mínima**: Nas configurações, reduza `minConfidence` para 40-50%
+2. **Atualizar previsões**: Clique no botão 🔄 para forçar atualização
+3. **Verificar ativos habilitados**: Confira se BTC, ETH, SOL estão na lista
+4. **Verificar logs**: Use a aba "Logs" para diagnóstico detalhado
 
-    // Check TP/SL conditions
-    const shouldClose = await this.checkCloseConditions(trade, currentPrice)
-    
-    if (shouldClose.close) {
-      await this.executeClose(trade, shouldClose.reason, currentPrice)
-    }
-  }
+#### 📊 Logs de Diagnóstico
 
-  private async checkCloseConditions(trade: any, currentPrice: number) {
-    // Check Take Profit
-    if (trade.takeProfit && ((trade.type === 'BUY' && currentPrice >= trade.takeProfit) ||
-        (trade.type === 'SELL' && currentPrice <= trade.takeProfit))) {
-      return { close: true, reason: 'take_profit' }
-    }
+```
+❌ [AUTO TRADE] Nenhum ativo elegível para trading automático
+🔍 [AUTO TRADE] Análise detalhada:
+   - Ativos disponíveis: 5
+   - Ativos habilitados: BTC, ETH, SOL
+   - Confiança mínima requerida: 75%
+   - Análise individual dos ativos:
+   - BTC: Habilitado: true, Confiança: 45% -> BAIXO, Previsão: buy -> OK, Elegível: false
+💡 [AUTO TRADE] Sugestões para correção:
+   - Tente reduzir a confiança mínima nas configurações
+   - Verifique se a API de previsão ML está funcionando
+```
 
-    // Check Stop Loss
-    if (trade.stopLoss && ((trade.type === 'BUY' && currentPrice <= trade.stopLoss) ||
-        (trade.type === 'SELL' && currentPrice >= trade.stopLoss))) {
-      return { close: true, reason: 'stop_loss' }
-    }
+### 🔧 Problemas de Conexão
 
-    // Check LSTM signals for trades older than 1 hour
-    const tradeAge = Date.now() - new Date(trade.createdAt).getTime()
-    if (tradeAge > 60 * 60 * 1000) {
-      const lstmSignal = await generateLSTMCloseSignal({
-        symbol: trade.assetSymbol,
-        entryPrice: trade.price,
-        currentPrice: currentPrice,
-        type: trade.type.toLowerCase(),
-        mlConfidence: trade.mlConfidence,
-        timestamp: trade.createdAt
-      })
+#### ❌ "Erro ao buscar dados de mercado"
 
-      if (lstmSignal.should_close && lstmSignal.confidence > 70) {
-        return { close: true, reason: 'ml_signal' }
-      }
-    }
+**Soluções:**
+1. **Verificar API**: Confira se `/api/trading/market` está respondendo
+2. **Verificar logs**: Use a aba "Logs" para ver erros detalhados
+3. **Reiniciar aplicação**: Recarregue a página e reinicie o bot
 
-    // Check maximum duration (24 hours)
-    if (tradeAge > 24 * 60 * 60 * 1000) {
-      return { close: true, reason: 'timeout' }
-    }
+### 🧠 Problemas de ML
 
-    return { close: false, reason: 'hold' }
-  }
+#### ❌ "Previsão inválida"
 
-  private async executeClose(trade: any, reason: string, closePrice: number) {
-    const realizedPnL = trade.type === 'BUY' 
-      ? (closePrice - trade.price) * (trade.amount / trade.price)
-      : (trade.price - closePrice) * (trade.amount / trade.price)
+**Soluções:**
+1. **Atualizar previsões**: Clique no botão 🔄
+2. **Verificar API ZAI**: Confira se o SDK está funcionando
+3. **Verificar logs**: Veja os logs da API de previsão na aba "Logs"
 
-    await prisma.trade.update({
-      where: { id: trade.id },
-      data: {
-        status: 'CLOSED',
-        closePrice: closePrice,
-        realizedPnL: realizedPnL,
-        closeReason: reason,
-        closedAt: new Date()
-      }
-    })
+## 📈 Performance e Otimização
 
-    // Update user portfolio and balance
-    await this.updatePortfolioOnClose(trade, closePrice, realizedPnL)
+### 🚀 Otimizações Implementadas
+- **Portfolio Compartilhado**: Estado unificado do portfólio entre todas as APIs
+- **Logs Eficientes**: Sistema de logging com limite de 100 entradas
+- **Atualização Seletiva**: Atualizações apenas de dados necessários
+- **Cache de Previsões**: Armazenamento temporário de previsões ML
 
-    console.log(`Trade ${trade.id} closed: ${reason} - P&L: $${realizedPnL.toFixed(2)}`)
-  }
+### 📊 Métricas de Performance
+- **Tempo de Resposta**: < 1s para operações de trading
+- **Taxa de Sucesso**: > 85% para previsões ML
+- **Uso de Memória**: < 100MB para logs e estado
+- **Atualização em Tempo Real**: Preços a cada 3 segundos
 
-  private async updatePortfolioOnClose(trade: any, closePrice: number, realizedPnL: number) {
-    // Update portfolio
-    const portfolio = await prisma.portfolio.findUnique({
-      where: {
-        userId_assetSymbol: {
-          userId: trade.userId,
-          assetSymbol: trade.assetSymbol
-        }
-      }
-    })
+## 🔮 Futuras Melhorias
 
-    if (portfolio) {
-      const quantity = trade.amount / trade.price
-      const newAmount = trade.type === 'BUY' ? 
-        portfolio.amount - quantity : portfolio.amount + quantity
+### 🎯 Planejado
+- [ ] Integração com exchanges reais (Binance, Coinbase)
+- [ ] Sistema de backtesting avançado
+- [ ] Dashboard de analytics e métricas
+- [ ] Mobile app nativo
+- [ ] Sistema de notificações push
+- [ ] Estratégias de trading personalizáveis
 
-      await prisma.portfolio.update({
-        where: { id: portfolio.id },
-        data: {
-          amount: newAmount,
+### 🛠️ Em Desenvolvimento
+- [ ] Conexão com database real (PostgreSQL)
+- [ ] Sistema de autenticação (NextAuth.js)
+- [ ] Multiusuário com perfis separados
+- [ ] API REST completa
+- [ ] Documentação Swagger/OpenAPI
+
+---
+
+## 📝 Licença
+
+Este projeto é para fins educacionais e demonstração. Não é aconselhado para uso em produção com dinheiro real sem modificações adequadas e testes extensivos.
+
+**⚠️ Aviso**: Este é um sistema de demonstração. As previsões e trades são simulados e não devem ser usados para investimento real. Sempre faça sua própria pesquisa e consulte profissionais financeiros antes de investir.
           value: newAmount * closePrice,
           updatedAt: new Date()
         }

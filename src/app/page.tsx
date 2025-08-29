@@ -78,7 +78,7 @@ export default function MLTradingBot() {
   // Configurações do trading automático
   const [autoTradeSettings, setAutoTradeSettings] = useState({
     enabledAssets: ['BTC', 'ETH', 'SOL'], // Ativos habilitados para trading automático
-    minConfidence: 75, // Confiança mínima para executar operações
+    minConfidence: 50, // Confiança mínima para executar operações (reduzido para teste)
     maxDailyTrades: 10, // Número máximo de operações diárias
     tradeInterval: 30, // Intervalo entre operações em segundos
     riskMultiplier: 1.0 // Multiplicador de risco
@@ -99,6 +99,7 @@ export default function MLTradingBot() {
   const [mlStatus, setMlStatus] = useState('Treinando modelos ML...') // Status do processamento ML
   const [loading, setLoading] = useState(false) // Estado de carregamento
   const [error, setError] = useState('') // Mensagens de erro
+  const [logs, setLogs] = useState<string[]>([]) // Logs de depuração
   
   // Contadores e estados de controle
   const [dailyTradeCount, setDailyTradeCount] = useState(0) // Contador de operações diárias
@@ -106,13 +107,26 @@ export default function MLTradingBot() {
   const [openTrades, setOpenTrades] = useState<OpenTrade[]>([]) // Operações abertas
   const [autoClosedTrades, setAutoClosedTrades] = useState<any[]>([]) // Operações fechadas automaticamente
 
+  // Função para adicionar logs à interface
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString()
+    const logEntry = `[${timestamp}] ${message}`
+    setLogs(prev => {
+      const newLogs = [...prev, logEntry]
+      // Manter apenas os últimos 100 logs para evitar sobrecarga
+      return newLogs.slice(-100)
+    })
+    // Também manter o console.log para depuração
+    console.log(message)
+  }
+
   // Função para buscar dados de mercado da API
   const fetchMarketData = async () => {
     try {
-      console.log('🌐 Buscando dados de mercado...')
+      addLog('🌐 [MARKET] Buscando dados de mercado...')
       const response = await fetch('/api/trading/market')
       const data = await response.json()
-      console.log('📊 Dados de mercado recebidos:', data)
+      addLog(`📊 [MARKET] Dados de mercado recebidos: ${JSON.stringify(data)}`)
       
       if (data.data) {
         // Formata os dados dos ativos recebidos da API
@@ -125,15 +139,17 @@ export default function MLTradingBot() {
           mlPrediction: 'hold' as const, // Será atualizado pelas previsões ML
           confidence: 0
         }))
-        console.log('📋 Ativos formatados:', formattedAssets)
+        addLog(`📋 [MARKET] Ativos formatados: ${formattedAssets.length} ativos`)
         setAssets(formattedAssets)
         // Seleciona o primeiro ativo como padrão se nenhum estiver selecionado
         if (formattedAssets.length > 0 && !selectedAsset) {
           setSelectedAsset(formattedAssets[0].symbol)
         }
+      } else {
+        addLog('❌ [MARKET] Nenhum dado de mercado recebido')
       }
     } catch (err) {
-      console.error('❌ Erro ao buscar dados de mercado:', err)
+      addLog(`❌ [MARKET] Erro ao buscar dados de mercado: ${err}`)
       setError('Failed to fetch market data')
     }
   }
@@ -151,11 +167,11 @@ export default function MLTradingBot() {
       // Exibe notificações para operações fechadas automaticamente
       if (data.auto_closed_trades && data.auto_closed_trades.length > 0) {
         data.auto_closed_trades.forEach((trade: any) => {
-          console.log(`Operação ${trade.trade_id} fechada automaticamente: ${trade.reason}`)
+          addLog(`🔄 [TRADE] Operação ${trade.trade_id} fechada automaticamente: ${trade.reason}`)
         })
       }
     } catch (err) {
-      console.error('Error fetching trade management data:', err)
+      addLog(`❌ [TRADE] Erro ao buscar dados de gerenciamento: ${err}`)
     }
   }
 
@@ -176,6 +192,9 @@ export default function MLTradingBot() {
         // Calcula a variação diária com base no valor anterior do portfólio
         const dailyChange = previousPortfolioValue > 0 ? totalValue - previousPortfolioValue : 0
         
+        // Log para depuração do cálculo do portfólio
+        addLog(`📊 [PORTFOLIO] Cálculo do Portfólio: totalValue=${totalValue.toFixed(2)}, previousPortfolioValue=${previousPortfolioValue.toFixed(2)}, dailyChange=${dailyChange.toFixed(2)}`)
+        
         setPortfolio({
           totalValue,
           dailyChange,
@@ -191,21 +210,33 @@ export default function MLTradingBot() {
         setPreviousPortfolioValue(totalValue)
       }
     } catch (err) {
-      console.error('Error fetching portfolio data:', err)
+      addLog(`❌ [PORTFOLIO] Erro ao buscar dados do portfólio: ${err}`)
     }
   }
 
   // Função para obter previsão de Machine Learning para um ativo específico
   const getPrediction = async (symbol: string) => {
     try {
-      console.log(`🔮 Buscando previsão ML para ${symbol}...`)
+      addLog(`🔮 [ML] Buscando previsão ML para ${symbol}...`)
       const response = await fetch('/api/trading/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol })
       })
+      
+      if (!response.ok) {
+        addLog(`❌ [ML] Erro na resposta da API para ${symbol}: ${response.status} ${response.statusText}`)
+        return null
+      }
+      
       const prediction = await response.json()
-      console.log(`📈 Previsão recebida para ${symbol}:`, prediction)
+      addLog(`📈 [ML] Previsão recebida para ${symbol}: ${JSON.stringify(prediction)}`)
+      
+      // Validação dos dados recebidos
+      if (!prediction.prediction || !prediction.confidence) {
+        addLog(`❌ [ML] Previsão inválida para ${symbol}: ${JSON.stringify(prediction)}`)
+        return null
+      }
       
       // Atualiza o ativo com a previsão recebida
       setAssets(prev => prev.map(asset => 
@@ -220,7 +251,7 @@ export default function MLTradingBot() {
       
       return prediction
     } catch (err) {
-      console.error(`❌ Erro ao obter previsão para ${symbol}:`, err)
+      addLog(`❌ [ML] Erro ao obter previsão para ${symbol}: ${err}`)
       return null
     }
   }
@@ -293,28 +324,40 @@ export default function MLTradingBot() {
   // Hook useEffect para inicialização de dados e configuração de atualizações em tempo real
   useEffect(() => {
     const initializeData = async () => {
-      console.log('🚀 Inicializando dados da aplicação...')
-      console.log('📊 Estado inicial:', {
-        isBotActive,
-        isAutoTradeEnabled,
-        dailyTradeCount,
-        autoTradeSettings
-      })
+      addLog('🚀 [INIT] Inicializando dados da aplicação...')
+      addLog(`📊 [INIT] Estado inicial: isBotActive=${isBotActive}, isAutoTradeEnabled=${isAutoTradeEnabled}, dailyTradeCount=${dailyTradeCount}`)
       
       // Busca dados iniciais das APIs
+      addLog('🌐 [INIT] Buscando dados de mercado...')
       await fetchMarketData()
+      
+      addLog('💰 [INIT] Buscando dados do portfólio...')
       await fetchPortfolioData()
+      
+      addLog('🔄 [INIT] Buscando dados de gerenciamento de operações...')
       await fetchTradeManagementData()
       
       // Obtém previsões iniciais para os ativos habilitados
       const enabledAssets = autoTradeSettings.enabledAssets
-      console.log('🎯 Ativos habilitados para previsões iniciais:', enabledAssets)
+      addLog(`🎯 [INIT] Ativos habilitados para previsões iniciais: ${enabledAssets.join(', ')}`)
+      
       for (const symbol of enabledAssets) {
+        addLog(`🔮 [INIT] Obtendo previsão para ${symbol}...`)
         await getPrediction(symbol)
       }
       
-      console.log('✅ Inicialização concluída!')
-      console.log('📊 Estado final dos ativos:', assets)
+      addLog('✅ [INIT] Inicialização concluída!')
+      addLog(`📊 [INIT] Estado final dos ativos: ${assets.length} ativos carregados`)
+      
+      // Log detalhado do estado final dos ativos
+      if (assets.length > 0) {
+        addLog('🔍 [INIT] Detalhamento dos ativos carregados:')
+        assets.forEach(asset => {
+          addLog(`   - ${asset.symbol}: preço=${asset.price.toFixed(2)}, confiança=${asset.confidence}%, previsão=${asset.mlPrediction}`)
+        })
+      } else {
+        addLog('⚠️ [INIT] ATENÇÃO: Nenhum ativo foi carregado!')
+      }
     }
 
     initializeData()
@@ -324,18 +367,18 @@ export default function MLTradingBot() {
       try {
         const symbols = assets.map(asset => asset.symbol)
         if (symbols.length === 0) {
-          console.log('⏭️ Nenhum ativo disponível para atualizar preços')
+          addLog('⏭️ [PRICE] Nenhum ativo disponível para atualizar preços')
           return
         }
         
-        console.log('🔄 Atualizando preços dos ativos:', symbols)
+        addLog(`🔄 [PRICE] Atualizando preços dos ativos: ${symbols.join(', ')}`)
         const response = await fetch('/api/trading/market', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ symbols })
         })
         const data = await response.json()
-        console.log('📊 Dados atualizados recebidos:', data)
+        addLog(`📊 [PRICE] Dados atualizados recebidos: ${JSON.stringify(data)}`)
         
         if (data.updated_data) {
           // Atualiza os preços dos ativos com os dados recebidos
@@ -345,7 +388,7 @@ export default function MLTradingBot() {
           }))
         }
       } catch (err) {
-        console.error('❌ Erro ao atualizar preços:', err)
+        addLog(`❌ [PRICE] Erro ao atualizar preços: ${err}`)
       }
     }, 3000) // Atualiza a cada 3 segundos
 
@@ -363,13 +406,13 @@ export default function MLTradingBot() {
 
     // Lógica de trading automático
     const autoTradeInterval = setInterval(async () => {
-      console.log('⏰ Intervalo de auto trade acionado...')
-      console.log('🤖 Status:', { isBotActive, isAutoTradeEnabled })
+      addLog('⏰ [AUTO TRADE] Intervalo de auto trade acionado...')
+      addLog(`🤖 [AUTO TRADE] Status: isBotActive=${isBotActive}, isAutoTradeEnabled=${isAutoTradeEnabled}`)
       if (isBotActive && isAutoTradeEnabled) {
-        console.log('🚀 Iniciando execução de auto trade...')
+        addLog('🚀 [AUTO TRADE] Iniciando execução de auto trade...')
         await executeAutoTradeAPI()
       } else {
-        console.log('⏸️ Auto trade pausado - bot não ativo ou auto trade desativado')
+        addLog('⏸️ [AUTO TRADE] Auto trade pausado - bot não ativo ou auto trade desativado')
       }
     }, autoTradeSettings.tradeInterval * 1000) // Executa conforme intervalo configurado
 
@@ -382,18 +425,11 @@ export default function MLTradingBot() {
 
     // Log de depuração do estado do auto trade
     const debugInterval = setInterval(() => {
-      console.log('🔍 Estado do Auto Trade:', {
-        isBotActive,
-        isAutoTradeEnabled,
-        dailyTradeCount,
-        maxDailyTrades: autoTradeSettings.maxDailyTrades,
-        assetsCount: assets.length,
-        eligibleAssets: assets.filter(asset => 
-          autoTradeSettings.enabledAssets.includes(asset.symbol) &&
-          asset.confidence >= autoTradeSettings.minConfidence &&
-          asset.mlPrediction !== 'hold'
-        ).length
-      })
+      addLog(`🔍 [DEBUG] Estado do Auto Trade: isBotActive=${isBotActive}, isAutoTradeEnabled=${isAutoTradeEnabled}, dailyTradeCount=${dailyTradeCount}, maxDailyTrades=${autoTradeSettings.maxDailyTrades}, assetsCount=${assets.length}, eligibleAssets=${assets.filter(asset => 
+        autoTradeSettings.enabledAssets.includes(asset.symbol) &&
+        asset.confidence >= autoTradeSettings.minConfidence &&
+        asset.mlPrediction !== 'hold'
+      ).length}`)
     }, 30000) // Log a cada 30 segundos
 
     return () => {
@@ -404,7 +440,7 @@ export default function MLTradingBot() {
       clearInterval(tradeManagementInterval)
       clearInterval(debugInterval)
     }
-  }, [isBotActive, isAutoTradeEnabled, autoTradeSettings.tradeInterval, assets.length])
+  }, [isBotActive, isAutoTradeEnabled, autoTradeSettings.tradeInterval]) // Removido assets.length das dependências
 
   // Função para executar operação manual de trading
   const executeTrade = async (type: 'buy' | 'sell') => {
@@ -464,20 +500,21 @@ export default function MLTradingBot() {
 
   // Função para executar trading automático baseado em previsões ML
   const executeAutoTradeAPI = async () => {
-    console.log('🤖 Iniciando execução de auto trade...')
-    console.log('📊 Status:', { isBotActive, isAutoTradeEnabled })
-    console.log('📈 Contador diário:', dailyTradeCount, '/', autoTradeSettings.maxDailyTrades)
+    addLog('🤖 [AUTO TRADE] Iniciando execução de auto trade...')
+    addLog(`📊 [AUTO TRADE] Status: isBotActive=${isBotActive}, isAutoTradeEnabled=${isAutoTradeEnabled}`)
+    addLog(`📈 [AUTO TRADE] Contador diário: ${dailyTradeCount}/${autoTradeSettings.maxDailyTrades}`)
+    addLog(`💰 [AUTO TRADE] Valor total do portfólio: ${portfolio.totalValue.toFixed(2)}`)
     
     // Verifica se atingiu o limite diário de operações
     if (dailyTradeCount >= autoTradeSettings.maxDailyTrades) {
-      console.log('❌ Limite diário de operações atingido')
+      addLog('❌ [AUTO TRADE] Limite diário de operações atingido')
       return
     }
 
     // Encontra ativos que atendem aos critérios de trading automático
-    console.log('🔍 Verificando ativos elegíveis...')
-    console.log('📋 Ativos disponíveis:', assets.length)
-    console.log('⚙️ Configurações:', autoTradeSettings)
+    addLog('🔍 [AUTO TRADE] Verificando ativos elegíveis...')
+    addLog(`📋 [AUTO TRADE] Ativos disponíveis: ${assets.length}`)
+    addLog(`⚙️ [AUTO TRADE] Configurações: ${JSON.stringify(autoTradeSettings)}`)
     
     const eligibleAssets = assets.filter(asset => 
       autoTradeSettings.enabledAssets.includes(asset.symbol) &&
@@ -485,15 +522,64 @@ export default function MLTradingBot() {
       asset.mlPrediction !== 'hold'
     )
 
-    console.log('✅ Ativos elegíveis encontrados:', eligibleAssets.length)
-    console.log('📊 Detalhes dos ativos elegíveis:', eligibleAssets.map(a => ({
+    addLog(`✅ [AUTO TRADE] Ativos elegíveis encontrados: ${eligibleAssets.length}`)
+    addLog(`📊 [AUTO TRADE] Detalhes dos ativos elegíveis: ${JSON.stringify(eligibleAssets.map(a => ({
       symbol: a.symbol,
       confidence: a.confidence,
-      prediction: a.mlPrediction
-    })))
+      prediction: a.mlPrediction,
+      price: a.price
+    })))}`)
 
     if (eligibleAssets.length === 0) {
-      console.log('❌ Nenhum ativo elegível para trading automático')
+      addLog('❌ [AUTO TRADE] Nenhum ativo elegível para trading automático')
+      addLog('🔍 [AUTO TRADE] Análise detalhada:')
+      addLog(`   - Ativos disponíveis: ${assets.length}`)
+      addLog(`   - Ativos habilitados: ${autoTradeSettings.enabledAssets.join(', ')}`)
+      addLog(`   - Confiança mínima requerida: ${autoTradeSettings.minConfidence}%`)
+      addLog(`   - Análise individual dos ativos:`)
+      
+      if (assets.length === 0) {
+        addLog('   ⚠️  CRÍTICO: Nenhum ativo carregado! Verifique a API de mercado.')
+      } else {
+        assets.forEach(asset => {
+          const isEnabled = autoTradeSettings.enabledAssets.includes(asset.symbol)
+          const hasConfidence = asset.confidence >= autoTradeSettings.minConfidence
+          const isNotHold = asset.mlPrediction !== 'hold'
+          const isEligible = isEnabled && hasConfidence && isNotHold
+          
+          addLog(`   - ${asset.symbol}:`)
+          addLog(`     Habilitado: ${isEnabled} (deve ser: ${autoTradeSettings.enabledAssets.includes(asset.symbol)})`)
+          addLog(`     Confiança: ${asset.confidence}% (mínimo: ${autoTradeSettings.minConfidence}%) -> ${hasConfidence ? 'OK' : 'BAIXO'}`)
+          addLog(`     Previsão: ${asset.mlPrediction} (deve ser ≠ "hold") -> ${isNotHold ? 'OK' : 'HOLD'}`)
+          addLog(`     Elegível: ${isEligible}`)
+        })
+      }
+      
+      // Sugestões automáticas baseado na análise
+      addLog('💡 [AUTO TRADE] Sugestões para correção:')
+      if (assets.length === 0) {
+        addLog('   - Verifique se a API de mercado está funcionando')
+        addLog('   - Verifique a conexão com /api/trading/market')
+      } else {
+        const noConfidence = assets.filter(asset => asset.confidence < autoTradeSettings.minConfidence).length
+        const allHold = assets.filter(asset => asset.mlPrediction === 'hold').length
+        const notEnabled = assets.filter(asset => !autoTradeSettings.enabledAssets.includes(asset.symbol)).length
+        
+        if (noConfidence === assets.length) {
+          addLog(`   - Todos os ativos têm confiança baixa (< ${autoTradeSettings.minConfidence}%)`)
+          addLog('   - Tente reduzir a confiança mínima nas configurações')
+          addLog('   - Verifique se a API de previsão ML está funcionando')
+        }
+        if (allHold === assets.length) {
+          addLog('   - Todos os ativos estão com previsão "hold"')
+          addLog('   - Aguarde novas previsões ou verifique o modelo ML')
+        }
+        if (notEnabled === assets.length) {
+          addLog('   - Nenhum ativo está habilitado para trading')
+          addLog(`   - Verifique as configurações: ativos habilitados = [${autoTradeSettings.enabledAssets.join(', ')}]`)
+        }
+      }
+      
       return
     }
 
@@ -502,26 +588,31 @@ export default function MLTradingBot() {
       current.confidence > prev.confidence ? current : prev
     )
 
-    console.log('🎯 Ativo selecionado:', selectedAsset.symbol, 'com confiança:', selectedAsset.confidence)
+    addLog(`🎯 [AUTO TRADE] Ativo selecionado: ${selectedAsset.symbol} com confiança: ${selectedAsset.confidence}`)
 
     // Obtém previsão atualizada para o ativo selecionado
-    console.log('🔮 Obtendo previsão atualizada...')
+    addLog(`🔮 [AUTO TRADE] Obtendo previsão atualizada...`)
     const prediction = await getPrediction(selectedAsset.symbol)
-    console.log('📈 Previsão recebida:', prediction)
+    addLog(`📈 [AUTO TRADE] Previsão recebida: ${JSON.stringify(prediction)}`)
     
     if (!prediction || prediction.confidence < autoTradeSettings.minConfidence) {
-      console.log('❌ Confiança da previsão muito baixa:', prediction?.confidence)
+      addLog(`❌ [AUTO TRADE] Confiança da previsão muito baixa: ${prediction?.confidence}`)
       return
     }
 
     // Calcula o valor da operação baseado nas configurações de risco
-    console.log('💰 Calculando valor da operação...')
+    addLog('💰 [AUTO TRADE] Calculando valor da operação...')
     const baseAmount = botSettings.maxTradeSize * autoTradeSettings.riskMultiplier
     const riskMultiplier = botSettings.riskLevel === 'low' ? 0.5 : 
                           botSettings.riskLevel === 'medium' ? 1.0 : 1.5
     const tradeAmount = Math.min(baseAmount * riskMultiplier, portfolio.totalValue * 0.1) // Máximo 10% do portfólio
     
-    console.log('💵 Valor calculado:', tradeAmount, 'baseAmount:', baseAmount, 'riskMultiplier:', riskMultiplier)
+    addLog(`💵 [AUTO TRADE] Valor calculado: ${tradeAmount}, baseAmount: ${baseAmount}, riskMultiplier: ${riskMultiplier}`)
+    
+    if (tradeAmount <= 0) {
+      addLog(`❌ [AUTO TRADE] Valor da operação inválido: ${tradeAmount}`)
+      return
+    }
 
     // Calcula Take Profit e Stop Loss baseado nas configurações do bot
     const takeProfitPercent = botSettings.takeProfit / 100
@@ -535,10 +626,19 @@ export default function MLTradingBot() {
       ? selectedAsset.price * (1 - stopLossPercent)
       : selectedAsset.price * (1 + stopLossPercent)
 
-    console.log('📊 TP/SL calculados:', { takeProfit, stopLoss, prediction: prediction.prediction })
+    addLog(`📊 [AUTO TRADE] TP/SL calculados: takeProfit=${takeProfit.toFixed(2)}, stopLoss=${stopLoss.toFixed(2)}, prediction=${prediction.prediction}`)
 
     // Executa a operação
-    console.log('🚀 Executando operação...')
+    addLog('🚀 [AUTO TRADE] Executando operação...')
+    addLog(`📋 [AUTO TRADE] Parâmetros da operação: ${JSON.stringify({
+      symbol: selectedAsset.symbol,
+      type: prediction.prediction,
+      amount: tradeAmount,
+      confidence: prediction.confidence,
+      takeProfit: takeProfit.toFixed(2),
+      stopLoss: stopLoss.toFixed(2)
+    })}`)
+    
     const result = await executeTradeAPI(
       selectedAsset.symbol, 
       prediction.prediction, 
@@ -549,10 +649,27 @@ export default function MLTradingBot() {
     )
 
     if (result) {
-      console.log('✅ Operação automática executada com sucesso:', result)
+      addLog(`✅ [AUTO TRADE] Operação automática executada com sucesso: ${JSON.stringify(result)}`)
     } else {
-      console.log('❌ Falha ao executar operação automática')
+      addLog('❌ [AUTO TRADE] Falha ao executar operação automática')
     }
+  }
+
+  // Função para forçar atualização de todas as previsões ML
+  const refreshAllPredictions = async () => {
+    addLog('🔄 [ML] Forçando atualização de todas as previsões ML...')
+    
+    if (assets.length === 0) {
+      addLog('❌ [ML] Nenhum ativo disponível para atualizar previsões')
+      return
+    }
+    
+    for (const asset of assets) {
+      addLog(`🔮 [ML] Atualizando previsão para ${asset.symbol}...`)
+      await getPrediction(asset.symbol)
+    }
+    
+    addLog('✅ [ML] Todas as previsões atualizadas')
   }
 
   // Funções para alternar estados do bot e trading automático
@@ -619,6 +736,14 @@ export default function MLTradingBot() {
               >
                 {isBotActive ? 'Parar Bot' : 'Iniciar Bot'}
               </Button>
+              <Button
+                onClick={refreshAllPredictions}
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={!isBotActive}
+                title="Atualizar todas as previsões ML"
+              >
+                🔄
+              </Button>
             </div>
           </div>
         </div>
@@ -670,13 +795,14 @@ export default function MLTradingBot() {
         </Card>
 
         <Tabs defaultValue="trading" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 bg-gray-800">
+          <TabsList className="grid w-full grid-cols-7 bg-gray-800">
             <TabsTrigger value="trading" className="data-[state=active]:bg-gray-700">Trading</TabsTrigger>
             <TabsTrigger value="assets" className="data-[state=active]:bg-gray-700">Ativos</TabsTrigger>
             <TabsTrigger value="predictions" className="data-[state=active]:bg-gray-700">Previsões ML</TabsTrigger>
             <TabsTrigger value="opentrades" className="data-[state=active]:bg-gray-700">Trades Abertos</TabsTrigger>
             <TabsTrigger value="autotrade" className="data-[state=active]:bg-gray-700">Auto Trade</TabsTrigger>
             <TabsTrigger value="history" className="data-[state=active]:bg-gray-700">Histórico</TabsTrigger>
+            <TabsTrigger value="logs" className="data-[state=active]:bg-gray-700">Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="trading" className="space-y-6">
@@ -1330,6 +1456,64 @@ export default function MLTradingBot() {
                     ))}
                   </div>
                 </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="logs" className="space-y-6">
+            <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Activity className="h-5 w-5" />
+                    <span>Logs de Depuração</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setLogs([])}
+                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                  >
+                    Limpar Logs
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  Logs em tempo real do sistema de trading automático
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-96">
+                  <div className="space-y-1 font-mono text-sm">
+                    {logs.length === 0 ? (
+                      <div className="text-gray-500 text-center py-8">
+                        Nenhum log disponível. Ative o bot e o auto trade para ver os logs.
+                      </div>
+                    ) : (
+                      logs.map((log, index) => {
+                        // Colorir logs baseado no tipo
+                        let logClass = "text-gray-300"
+                        if (log.includes('❌')) logClass = "text-red-400"
+                        else if (log.includes('✅')) logClass = "text-green-400"
+                        else if (log.includes('🚀') || log.includes('📊')) logClass = "text-blue-400"
+                        else if (log.includes('🔍') || log.includes('📋')) logClass = "text-yellow-400"
+                        else if (log.includes('⏰') || log.includes('⏸️')) logClass = "text-purple-400"
+                        
+                        return (
+                          <div 
+                            key={index} 
+                            className={`p-2 rounded ${log.includes('❌') ? 'bg-red-900/20' : log.includes('✅') ? 'bg-green-900/20' : 'bg-gray-700/30'} ${logClass}`}
+                          >
+                            {log}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+                <div className="mt-4 flex items-center justify-between text-sm text-gray-400">
+                  <div>Total de logs: {logs.length}</div>
+                  <div>Última atualização: {new Date().toLocaleTimeString()}</div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
